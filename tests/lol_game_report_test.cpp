@@ -42,7 +42,7 @@ int main()
 	assert(recovered.schema_version == 4 && recovered.champion.isEmpty());
 	assert(recovered.hexbin_estimated && recovered.hexbins.size() == 1 && recovered.hexbins.first().dwell_ms == 24);
 	const hex_grid grid{1.6, 4};
-	assert(canonical_height(grid) == 62.5);
+	assert(sources::lol_game_report::canonical_height(grid) == 62.5);
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).column == 3);
 	assert(nearest_hex(grid, hex_center(grid, 3, 2)).row == 2);
 	const auto cells = sources::lol_heatmap::visible_cells(grid);
