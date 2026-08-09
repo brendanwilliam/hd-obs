@@ -42,9 +42,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src deps/libuiohook/inc
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
 set(
   ONLINE_REPORTS_SERVICE_URL
-  "https://handscheck.vercel.app"
+  "https://hands-diff.vercel.app"
   CACHE STRING
-  "Base URL for the Handscheck report service"
+  "Base URL for the Hands Diff report service"
 )
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ONLINE_REPORTS_SERVICE_URL="${ONLINE_REPORTS_SERVICE_URL}")
 target_compile_options(

@@ -24,7 +24,7 @@ namespace {
 constexpr auto service_name = "com.brendanwilliam.input-activity.online-reports";
 constexpr auto account_name = "reports:write";
 #ifndef ONLINE_REPORTS_SERVICE_URL
-#define ONLINE_REPORTS_SERVICE_URL "https://handscheck.vercel.app"
+#define ONLINE_REPORTS_SERVICE_URL "https://hands-diff.vercel.app"
 #endif
 
 struct pending_report {
@@ -220,7 +220,7 @@ void online_reports::begin_link()
 		return;
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/start")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-	auto *reply = implementation_->network.post(request, R"({"client_name":"Hands Check"})");
+	auto *reply = implementation_->network.post(request, R"({"client_name":"Hands Diff"})");
 	connect(reply, &QNetworkReply::finished, this, [this, reply] {
 		const auto value = QJsonDocument::fromJson(reply->readAll()).object();
 		implementation_->device_code = value["device_code"].toString();
@@ -283,8 +283,8 @@ void online_reports::poll_device_code()
 				QCoreApplication::instance(),
 				[] {
 					QMessageBox::information(
-						nullptr, "Hands Check",
-						"Hands Check is linked. Completed reports will upload privately to your profile.");
+						nullptr, "Hands Diff",
+						"Hands Diff is linked. Completed reports will upload privately to your profile.");
 				},
 				Qt::QueuedConnection);
 		}
