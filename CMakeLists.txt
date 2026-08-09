@@ -40,6 +40,13 @@ target_link_libraries(
 )
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src deps/libuiohook/include)
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
+set(
+  ONLINE_REPORTS_SERVICE_URL
+  "https://hands-diff.vercel.app"
+  CACHE STRING
+  "Base URL for the Hands Diff report service"
+)
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ONLINE_REPORTS_SERVICE_URL="${ONLINE_REPORTS_SERVICE_URL}")
 target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
@@ -93,20 +100,12 @@ target_sources(
     src/sources/game_report/collection/lol_shared.inc
     src/sources/game_report/data/lol_diagnostics.hpp
     src/sources/game_report/data/lol_diagnostics.cpp
-    src/sources/game_report/data/lol_store.hpp
-    src/sources/game_report/data/lol_store.cpp
     src/sources/game_report/data/lol_types.hpp
     src/sources/game_report/data/lol_types.cpp
-    src/sources/game_report/integration/lol_ddragon.hpp
-    src/sources/game_report/integration/lol_ddragon.cpp
-    src/sources/game_report/integration/lol_riot_api.hpp
-    src/sources/game_report/integration/lol_riot_api.cpp
+    src/sources/game_report/integration/lol_online_reports.hpp
+    src/sources/game_report/integration/lol_online_reports.cpp
     src/sources/game_report/presentation/lol_report_manager.hpp
     src/sources/game_report/presentation/lol_report_manager.cpp
-    src/sources/game_report/presentation/lol_web.hpp
-    src/sources/game_report/presentation/lol_web.cpp
-    src/sources/game_report/presentation/lol_web_assets.hpp
-    src/sources/game_report/presentation/lol_web_assets.cpp
     src/sources/hud_layout/lol_layout.hpp
     src/sources/hud_layout/lol_layout.cpp
 )
@@ -153,10 +152,9 @@ if(BUILD_TESTING)
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.cpp
     src/sources/game_report/data/lol_diagnostics.cpp
-    src/sources/game_report/integration/lol_ddragon.cpp
-    src/sources/game_report/presentation/lol_web_assets.cpp
+    src/sources/game_report/integration/lol_online_reports.cpp
   )
-  target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui)
+  target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Widgets)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
