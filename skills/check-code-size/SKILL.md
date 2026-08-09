@@ -6,7 +6,7 @@ description: Check source-file size, ownership, and grouping before or after a r
 # Check code size
 
 1. Run `skills/check-code-size/scripts/check-code-size.sh`.
-2. Keep every source implementation module at or below 400 lines. Split files by stable
+2. Keep every source implementation module at or below 400 non-blank lines. Split files by stable
    responsibility, never by arbitrary line range.
 3. Group each source implementation under a feature or shared-responsibility directory in
    `src/sources/`; implementation files do not belong directly in `src/sources/`.
