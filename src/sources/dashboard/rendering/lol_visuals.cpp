@@ -6,6 +6,7 @@
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPolygonF>
 #include <QStringList>
 #include <algorithm>
@@ -17,7 +18,7 @@ namespace sources {
 namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
 constexpr uint64_t live_key_fade_ns = 1500000000ULL;
-constexpr uint64_t mouse_trail_segment_ns = 100000000ULL;
+constexpr uint64_t mouse_trail_segment_ns = 20000000ULL;
 constexpr uint64_t mouse_trail_duration_ns = 1500000000ULL;
 
 void ensure_dashboard_fonts_registered()
@@ -229,7 +230,7 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 		chord.append(lol_dashboard_key_label(event.code));
 		const auto action = gameplay_actions_.constFind(chord.join('+'));
 		if (action != gameplay_actions_.cend()) {
-			trail_.push_back({*pointer_, event.time_ns, 0, action.value()});
+			trail_.push_back({*pointer_, event.time_ns, 0, lol_dashboard_key_label(event.code).toLower()});
 			if (trail_.size() > 20)
 				trail_.pop_front();
 		}
@@ -282,31 +283,35 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 		QColor line(Qt::white);
 		line.setAlphaF(opacity);
 		painter.setPen(QPen(line, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-		painter.drawLine(QPointF(bounds.left() + previous.point.x() * bounds.width(),
-					 bounds.top() + previous.point.y() * bounds.height()),
-				 QPointF(bounds.left() + sample.point.x() * bounds.width(),
-					 bounds.top() + sample.point.y() * bounds.height()));
+		painter.setBrush(Qt::NoBrush);
+		const auto map_point = [&](const QPointF &point) {
+			return QPointF(bounds.left() + point.x() * bounds.width(),
+				       bounds.top() + point.y() * bounds.height());
+		};
+		const QPointF start = index == 1 ? map_point(previous.point)
+						 : (map_point(previous.point) + map_point(sample.point)) / 2.0;
+		const QPointF end =
+			index + 1 < motion_trail_.size()
+				? (map_point(sample.point) + map_point(motion_trail_[index + 1].point)) / 2.0
+				: map_point(sample.point);
+		QPainterPath path(start);
+		path.quadTo(map_point(sample.point), end);
+		painter.drawPath(path);
 	}
 	for (size_t index = 0; index < trail_.size(); ++index) {
 		const auto &event = trail_[index];
 		const QPointF point(bounds.left() + event.point.x() * bounds.width(),
 				    bounds.top() + event.point.y() * bounds.height());
-		if (index > 0) {
-			const auto &previous = trail_[index - 1];
-			QColor line(255, 255, 255);
-			line.setAlphaF(std::pow(0.95, trail_.size() - index));
-			painter.setPen(QPen(line, 2));
-			painter.drawLine(QPointF(bounds.left() + previous.point.x() * bounds.width(),
-						 bounds.top() + previous.point.y() * bounds.height()),
-					 point);
-		}
 		QColor color = event.button == MOUSE_BUTTON1   ? QColor(239, 68, 68)
 			       : event.button == MOUSE_BUTTON2 ? QColor(59, 130, 246)
 							       : QColor(250, 204, 21);
 		color.setAlphaF(std::pow(0.95, trail_.size() - 1 - index));
 		painter.setBrush(color);
 		painter.setPen(Qt::NoPen);
-		painter.drawEllipse(point, 7, 7);
+		if (event.button == MOUSE_BUTTON1 || event.button == MOUSE_BUTTON2 || event.button == MOUSE_BUTTON3)
+			painter.drawEllipse(point, 7, 7);
+		else
+			painter.drawRect(QRectF(point.x() - 7, point.y() - 7, 14, 14));
 		if (!event.label.isEmpty()) {
 			painter.setPen(Qt::white);
 			painter.setFont(dashboard_font(style_.numbers_secondary, QFont::Bold));
