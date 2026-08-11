@@ -346,6 +346,9 @@ QString lol_dashboard_visuals::distance_label() const
 void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds) const
 {
 	painter.setClipRect(bounds);
+	QColor tracking_background(Qt::black);
+	tracking_background.setAlphaF(0.2);
+	painter.fillRect(bounds, tracking_background);
 	const uint64_t now = os_gettime_ns();
 	if (motion_trail_.size() > 1) {
 		const auto map_point = [&](const QPointF &point) {
