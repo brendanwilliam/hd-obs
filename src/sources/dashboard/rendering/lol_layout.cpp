@@ -135,7 +135,11 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		camera_anchor_bounds.left(), camera_anchor_bounds.top(), camera_anchor_bounds.width(),
 		std::min(camera_anchor_bounds.height(), std::max(1, cover_bounds.height() * 2))};
 	if (camera.enabled && camera.aspect > 0.0) {
-		result.camera_mask = anchored_lower_corner(camera_bounds, camera_anchor_bounds, !minimap_left);
+		const lol_dashboard_rect camera_mask{
+			camera_bounds.left(), camera_bounds.top(),
+			std::max(1, camera_bounds.width() * std::clamp(camera.width_percent, 1, 200) / 100),
+			std::max(1, camera_bounds.height() * std::clamp(camera.height_percent, 1, 200) / 100)};
+		result.camera_mask = anchored_lower_corner(camera_mask, camera_anchor_bounds, !minimap_left);
 		result.camera =
 			cover(result.camera_mask, camera.aspect, std::clamp(camera.scale_percent, 1, 400) / 100.0);
 		result.camera.moveLeft(result.camera_mask.left() +

@@ -7,12 +7,13 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "lol_dashboard.auto_switch_captures", true);
 	obs_data_set_default_string(settings, league_capture_switcher::game_source_key, "");
 	obs_data_set_default_string(settings, league_capture_switcher::client_source_key, "");
-	obs_data_set_default_int(settings, "lol_dashboard.window", 60);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_intensity", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_keys", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_mouse_activity", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_camera", true);
 	obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
+	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 100);
+	obs_data_set_default_int(settings, "lol_dashboard.camera_height_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_scale_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_x_percent", 0);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_y_percent", 0);

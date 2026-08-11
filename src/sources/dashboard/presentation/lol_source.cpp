@@ -30,6 +30,7 @@ namespace sources {
 namespace {
 constexpr const char *source_id = "input-activity-lol-performance-dashboard";
 constexpr const char *path_key = "lol_dashboard.game_cfg";
+constexpr int rolling_window_seconds = 3;
 class dashboard_source {
 public:
 	dashboard_source(obs_source_t *source, obs_data_t *settings) : source_(source)
@@ -73,6 +74,12 @@ public:
 						 camera_source_uuid_ != selected_camera_source;
 		camera_source_uuid_ = selected_camera_source;
 		camera_source_initialized_ = true;
+		camera_width_percent_ = camera_link_changed
+						? 100
+						: int(obs_data_get_int(settings, "lol_dashboard.camera_width_percent"));
+		camera_height_percent_ =
+			camera_link_changed ? 100
+					    : int(obs_data_get_int(settings, "lol_dashboard.camera_height_percent"));
 		camera_scale_percent_ = camera_link_changed
 						? 100
 						: int(obs_data_get_int(settings, "lol_dashboard.camera_scale_percent"));
@@ -85,6 +92,8 @@ public:
 				? 0
 				: int(obs_data_get_int(settings, "lol_dashboard.camera_translate_y_percent"));
 		if (camera_link_changed) {
+			obs_data_set_int(settings, "lol_dashboard.camera_width_percent", camera_width_percent_);
+			obs_data_set_int(settings, "lol_dashboard.camera_height_percent", camera_height_percent_);
 			obs_data_set_int(settings, "lol_dashboard.camera_scale_percent", camera_scale_percent_);
 			obs_data_set_int(settings, "lol_dashboard.camera_translate_x_percent",
 					 camera_translate_x_percent_);
@@ -119,7 +128,6 @@ public:
 		const int left = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_left"))
 						       : 0;
 		const int top = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0;
-		window_ = std::clamp(int(obs_data_get_int(settings, "lol_dashboard.window")), 1, 60);
 		regions_ = lol_dashboard_regions_from_settings(reinterpret_cast<obs_data *>(settings));
 		trail_filter_ = lol_dashboard_trail_filter_from_settings(reinterpret_cast<obs_data *>(settings));
 		theme_ = {lol_dashboard_obs_color(uint32_t(obs_data_get_int(settings, "activity.inactive_color"))),
@@ -166,8 +174,8 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, regions_, window_, frame_, lol_dashboard_qrect(panels.heatmap), style_,
-				   trail_filter_);
+		visuals_.configure(theme_, regions_, rolling_window_seconds, frame_,
+				   lol_dashboard_qrect(panels.heatmap), style_, trail_filter_);
 		if (!analysis_enabled_) {
 			visuals_.clear_live_keys();
 			discard_backlog_ = true;
@@ -321,13 +329,12 @@ private:
 	obs_source_t *source_{};
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
-	int window_{60};
 	bool advanced_positioning_{}, debug_mode_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
 		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{},
 		auto_reset_at_game_start_{true}, auto_switch_captures_{true}, analysis_enabled_{};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
-	int camera_scale_percent_{100};
+	int camera_width_percent_{100}, camera_height_percent_{100}, camera_scale_percent_{100};
 	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_width_percent_{100},
 		minimap_cover_height_percent_{100}, minimap_cover_scale_percent_{100},
 		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{},
