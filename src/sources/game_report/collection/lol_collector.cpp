@@ -199,8 +199,10 @@ private:
 		const QPointF point = point_for(event);
 		report_.local_gameplay_events.append(
 			QJsonObject{{"sequence", QString::number(event.sequence)},
+				    {"monotonic_time_ns", QString::number(event.time_ns)},
 				    {"game_time_ms", qRound64(seconds * 1000.0)},
 				    {"kind", kind},
+				    {"action", button + "_click"},
 				    {"button", button},
 				    {"pointer", QJsonObject{{"x", point.x()}, {"y", point.y()}}}});
 	}
@@ -216,14 +218,17 @@ private:
 			return;
 		}
 		if (event.type == EVENT_KEY_PRESSED) {
-			const QString action = gameplay_actions_.value(gameplay_chord(pressed_modifiers_, event.code));
+			const QString chord = gameplay_chord(pressed_modifiers_, event.code);
+			const QString action = gameplay_actions_.value(chord);
 			if (!action.isEmpty()) {
 				metrics_.record_action(seconds, gameplay_input::bound_key);
 				report_.local_gameplay_events.append(
 					QJsonObject{{"sequence", QString::number(event.sequence)},
+						    {"monotonic_time_ns", QString::number(event.time_ns)},
 						    {"game_time_ms", qRound64(seconds * 1000.0)},
 						    {"kind", "bound_key"},
-						    {"action", action}});
+						    {"action", action},
+						    {"chord", chord}});
 			}
 			return;
 		}
