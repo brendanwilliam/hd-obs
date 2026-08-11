@@ -24,7 +24,7 @@ lol_dashboard_regions::section section_from_settings(obs_data_t *settings, const
 			int(obs_data_get_int(
 				settings,
 				(prefix + ".slot_" + std::to_string(index + 1) + ".intensity_metric").c_str())),
-			0, 1);
+			0, 3);
 		fallback.total_metrics[index] = std::clamp(
 			int(obs_data_get_int(
 				settings, (prefix + ".slot_" + std::to_string(index + 1) + ".total_metric").c_str())),

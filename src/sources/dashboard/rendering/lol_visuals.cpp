@@ -22,6 +22,16 @@ constexpr uint64_t live_key_fade_ns = 1500000000ULL;
 constexpr uint64_t mouse_trail_segment_ns = 20000000ULL;
 constexpr uint64_t mouse_trail_duration_ns = 1500000000ULL;
 constexpr uint64_t pointer_indicator_fade_ns = 500000000ULL;
+constexpr int mouse_velocity_metric = 0;
+constexpr int apm_metric = 1;
+constexpr int cpm_metric = 2;
+constexpr int kpm_metric = 3;
+constexpr std::array<const char *, 4> intensity_metric_labels{
+	"LoLPerformanceDashboard.MouseVelocity",
+	"LoLPerformanceDashboard.APM",
+	"LoLPerformanceDashboard.CPM",
+	"LoLPerformanceDashboard.KPM",
+};
 
 void ensure_dashboard_fonts_registered()
 {
@@ -248,7 +258,8 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 				   active_keys_.end());
 		active_keys_.push_back(
 			{event.code, lol_dashboard_key_label(event.code), 0, 0, ++press_counts_[event.code]});
-		++current_[1];
+		++current_[apm_metric];
+		++current_[kpm_metric];
 		++total_key_presses_;
 		activate_pointer_indicator(event.code, lol_dashboard_key_label(event.code));
 	} else if (event.type == EVENT_KEY_RELEASED) {
@@ -260,7 +271,8 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 			}
 		release_pointer_indicator(event.code, event.time_ns);
 	} else if (event.type == EVENT_MOUSE_PRESSED) {
-		++current_[1];
+		++current_[apm_metric];
+		++current_[cpm_metric];
 		++total_clicks_;
 		activate_pointer_indicator(event.code, event.code == MOUSE_BUTTON1   ? "L"
 						       : event.code == MOUSE_BUTTON2 ? "R"
@@ -488,7 +500,7 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 {
 	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
-	metric = std::clamp(metric, 0, 1);
+	metric = std::clamp(metric, mouse_velocity_metric, kpm_metric);
 	{
 		const QRect card = section;
 		const QRect content = card.adjusted(style_.element_padding, style_.element_padding,
@@ -501,12 +513,15 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		const int text_gap = std::min(style_.within_element_gap, 4);
 		std::vector<double> values;
 		for (const auto &sample : session_samples_)
-			values.push_back(metric == 0 ? sample[0] / 2800.0 * 2.54 : sample[1] * 60.0);
-		std::array<double, 2> total = current_;
+			values.push_back(metric == mouse_velocity_metric ? sample[mouse_velocity_metric] / 2800.0 * 2.54
+									 : sample[metric] * 60.0);
+		std::array<double, 4> total = current_;
 		for (const auto &sample : samples_) {
 			total[metric] += sample[metric];
 		}
-		const double current = metric == 0 ? total[0] / window_ / 2800.0 * 2.54 : total[1] * 60.0 / window_;
+		const double current = metric == mouse_velocity_metric
+					       ? total[mouse_velocity_metric] / window_ / 2800.0 * 2.54
+					       : total[metric] * 60.0 / window_;
 		values.push_back(current);
 		std::sort(values.begin(), values.end());
 		const double min = values.front(), max = values.back(), range = std::max(0.001, max - min);
@@ -535,9 +550,7 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
 		lol_dashboard_draw_shadowed_text(
 			painter, QRect(content.left(), label_top, content.width(), label_height), Qt::AlignHCenter,
-			dashboard_text(obs_module_text(metric ? "LoLPerformanceDashboard.APM"
-							      : "LoLPerformanceDashboard.MouseVelocity"),
-				       style_.number_labels));
+			dashboard_text(obs_module_text(intensity_metric_labels[metric]), style_.number_labels));
 		painter.setFont(dashboard_font(style_.number_primary, QFont::Bold));
 		painter.setPen(theme_.active);
 		lol_dashboard_draw_shadowed_text(painter,

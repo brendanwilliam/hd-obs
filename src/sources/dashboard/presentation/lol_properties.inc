@@ -300,6 +300,8 @@ obs_properties_t *properties(void *data)
 			obs_property_list_add_int(intensity_metric,
 						  obs_module_text("LoLPerformanceDashboard.MouseVelocity"), 0);
 			obs_property_list_add_int(intensity_metric, obs_module_text("LoLPerformanceDashboard.APM"), 1);
+			obs_property_list_add_int(intensity_metric, obs_module_text("LoLPerformanceDashboard.CPM"), 2);
+			obs_property_list_add_int(intensity_metric, obs_module_text("LoLPerformanceDashboard.KPM"), 3);
 			auto *total_metric = obs_properties_add_list(
 				section_properties,
 				(prefix + ".slot_" + std::to_string(index + 1) + ".total_metric").c_str(),
