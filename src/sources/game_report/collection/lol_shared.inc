@@ -19,6 +19,7 @@ struct shared_collector {
 		});
 		worker->moveToThread(&thread);
 		QObject::connect(&thread, &QThread::started, worker, [this] { worker->start(); });
+		QObject::connect(&thread, &QThread::finished, worker, &QObject::deleteLater);
 		thread.start();
 	}
 	void release()
@@ -31,7 +32,6 @@ struct shared_collector {
 		QMetaObject::invokeMethod(worker, [this] { worker->stop(); }, Qt::BlockingQueuedConnection);
 		thread.quit();
 		thread.wait();
-		delete worker;
 		worker = nullptr;
 		{
 			std::lock_guard champion_lock(champion_mutex);
