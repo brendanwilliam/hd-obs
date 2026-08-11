@@ -76,6 +76,8 @@ struct lol_dashboard_style {
 	lol_dashboard_font_style button_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
 };
 
+int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, const lol_dashboard_style &style);
+
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
 QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,

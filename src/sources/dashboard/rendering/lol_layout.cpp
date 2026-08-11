@@ -111,6 +111,23 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_split_weighted_slots(const lol_d
 	return result;
 }
 
+std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_rect &bounds,
+							    const std::array<int, 4> &heights, int count, int gap)
+{
+	std::array<lol_dashboard_rect, 4> result{};
+	count = std::clamp(count, 0, 4);
+	if (bounds.isEmpty() || count == 0)
+		return result;
+	gap = std::max(0, gap);
+	int top = bounds.top();
+	for (int index = 0; index < count && top <= bounds.bottom(); ++index) {
+		const int height = std::min(std::max(1, heights[index]), bounds.bottom() - top + 1);
+		result[index] = {bounds.left(), top, bounds.width(), height};
+		top += height + gap;
+	}
+	return result;
+}
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
 						    const lol_dashboard_image_layout &minimap_cover, int hud_padding)
@@ -186,10 +203,14 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 			cover_bounds.height() * std::clamp(camera.translate_y_percent, -200, 200) / 100);
 		result.camera_visible = true;
 		const int top = std::max(header_bounds.bottom() + 1, panel_gap);
+		const int safe_bottom = camera.next_to_minimap ? mouse_bounds.bottom()
+							       : std::min(mouse_bounds.bottom(),
+									  result.camera_mask.top() - panel_gap - 1);
+		const int map_height = safe_bottom >= top ? std::min(heat_height, safe_bottom - top + 1) : 0;
 		result.heatmap = {minimap_left ? width - panel_gap - heat_width : panel_gap, top, heat_width,
-				  heat_height};
+				  map_height};
 		result.summary = {result.heatmap.left(), result.heatmap.bottom() + panel_gap + 1, heat_width,
-				  std::max(1, mouse_bounds.bottom() - result.heatmap.bottom() - panel_gap)};
+				  std::max(0, safe_bottom - result.heatmap.bottom() - panel_gap)};
 	} else {
 		const int heat_top = std::max(0, mouse_bounds.bottom() - heat_height + 1);
 		result.heatmap = {minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(), heat_top,

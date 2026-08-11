@@ -206,6 +206,38 @@ void lol_dashboard_visuals::advance(uint64_t now)
 		bucket_start_ += second_ns;
 	}
 }
+
+int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, const lol_dashboard_style &style)
+{
+	const int vertical_padding = 2 * (style.section_padding + style.element_padding);
+	const int label_height = QFontMetrics(dashboard_font(style.number_labels, QFont::Bold)).height() + 2;
+	const int value_height = QFontMetrics(dashboard_font(style.number_primary, QFont::Bold)).height() + 2;
+	switch (widget) {
+	case lol_dashboard_regions::widget::cumulative_totals:
+	case lol_dashboard_regions::widget::mouse_distance:
+		return vertical_padding + label_height + style.within_element_gap + value_height;
+	case lol_dashboard_regions::widget::live_keys: {
+		const int count_height = QFontMetrics(dashboard_font(style.numbers_secondary)).height() + 2;
+		const int active_row_height =
+			std::max(style.button_labels.size + count_height + style.within_element_gap, 80);
+		return vertical_padding + label_height + style.label_spacing + active_row_height;
+	}
+	case lol_dashboard_regions::widget::top_keys: {
+		constexpr int bar_height = 12;
+		constexpr int bar_vertical_spacing = 20;
+		const int key_label_height = QFontMetrics(dashboard_font(style.numbers_secondary)).height() + 2;
+		const int row_height = key_label_height + 2 + bar_height;
+		return vertical_padding + label_height + style.label_spacing + 8 * row_height +
+		       7 * bar_vertical_spacing;
+	}
+	case lol_dashboard_regions::widget::intensity:
+		return vertical_padding + 160;
+	case lol_dashboard_regions::widget::mouse_activity:
+	case lol_dashboard_regions::widget::none:
+		return 0;
+	}
+	return 0;
+}
 void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 {
 	advance(event.time_ns);
