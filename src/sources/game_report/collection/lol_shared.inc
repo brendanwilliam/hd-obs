@@ -39,16 +39,6 @@ struct shared_collector {
 		}
 		state = collection_state::empty;
 	}
-	void set_dpi(int dpi)
-	{
-		QMetaObject::invokeMethod(worker, [this, dpi] { worker->set_dpi(dpi); }, Qt::QueuedConnection);
-	}
-	void set_hex_radius_percent(double radius_percent)
-	{
-		QMetaObject::invokeMethod(
-			worker, [this, radius_percent] { worker->set_hex_radius_percent(radius_percent); },
-			Qt::QueuedConnection);
-	}
 	void set_game_frame(const QRect &frame)
 	{
 		QMetaObject::invokeMethod(
@@ -131,14 +121,6 @@ collection_state collector::state() const
 {
 	return shared().state.load();
 }
-void collector::set_dpi(int dpi)
-{
-	shared().set_dpi(dpi);
-}
-void collector::set_hex_radius_percent(double radius_percent)
-{
-	shared().set_hex_radius_percent(radius_percent);
-}
 void collector::set_game_frame(const QRect &frame)
 {
 	shared().set_game_frame(frame);
@@ -155,10 +137,8 @@ QString collector::active_champion() const
 {
 	return shared().champion();
 }
-void collector::tick(int dpi, double hex_radius_percent)
+void collector::tick()
 {
-	set_dpi(dpi);
-	set_hex_radius_percent(hex_radius_percent);
 	if (!uiohook::league_game_is_frontmost()) {
 		discard_backlog_ = true;
 		return;

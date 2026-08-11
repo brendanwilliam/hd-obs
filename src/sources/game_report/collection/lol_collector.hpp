@@ -19,9 +19,7 @@ public:
 	~collector();
 	collector(const collector &) = delete;
 	collection_state state() const;
-	void tick(int dpi, double hex_radius_percent);
-	void set_dpi(int dpi);
-	void set_hex_radius_percent(double radius_percent);
+	void tick();
 	void set_game_frame(const QRect &frame);
 	void set_gameplay_actions(const QHash<QString, QString> &actions);
 	void set_enabled(bool enabled);

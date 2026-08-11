@@ -59,8 +59,6 @@ public:
 	{
 		submission_callback_ = std::move(callback);
 	}
-	void set_dpi(int) {}
-	void set_hex_radius_percent(double) {}
 	void set_development_logs(bool enabled)
 	{
 		diagnostics_.set_enabled(enabled);

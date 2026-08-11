@@ -48,9 +48,6 @@ QJsonObject to_json(const report &v)
 		tag_line = "unknown";
 	QJsonArray intensity;
 	QVector<intensity_sample> samples = v.v2_intensity;
-	if (samples.isEmpty())
-		for (const auto &sample : v.input_samples)
-			samples.append({sample.seconds, sample.actions * 20.0, sample.max_velocity_pixels_per_second});
 	for (const auto &sample : samples)
 		intensity.append(QJsonObject{{"second", sample.second},
 					     {"apm", sample.apm},

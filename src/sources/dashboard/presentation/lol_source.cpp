@@ -170,7 +170,7 @@ public:
 							 game_is_frontmost);
 		if (!layout_)
 			return;
-		report_.tick(frame_, 0.0);
+		report_.tick(frame_);
 		const auto panels = panel_rectangles();
 		if (camera_mode_visible_ && panels.camera_visible)
 			camera_visibility_.fit_to_panel(panels.camera_mask.left(), panels.camera_mask.top(),

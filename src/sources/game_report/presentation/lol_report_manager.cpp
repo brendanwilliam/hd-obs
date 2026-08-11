@@ -13,7 +13,6 @@
 
 namespace sources {
 namespace {
-constexpr const char *dpi_key = "lol_dashboard.report.mouse_dpi";
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
 constexpr const char *online_service_url_key = "lol_dashboard.report.online_service_url";
 constexpr const char *upload_enabled_key = "lol_dashboard.report.upload_enabled";
@@ -46,7 +45,6 @@ public:
 	}
 	void update(obs_data_t *settings)
 	{
-		dpi = int(obs_data_get_int(settings, dpi_key));
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		analysis_enabled = obs_data_get_bool(settings, analysis_enabled_key);
 		collector.set_enabled(analysis_enabled);
@@ -59,17 +57,15 @@ public:
 		input_path = next_input_path;
 		reload_bindings(collector.active_champion());
 	}
-	void tick(const QRect &game_frame, double hex_radius_percent)
+	void tick(const QRect &game_frame)
 	{
 		if (owner && owner != this)
 			return;
 		owner = this;
-		collector.set_dpi(dpi);
-		collector.set_hex_radius_percent(hex_radius_percent);
 		collector.set_game_frame(game_frame);
 		collector.set_development_logs(development_logs);
 		collector.set_enabled(analysis_enabled);
-		collector.tick(dpi, hex_radius_percent);
+		collector.tick();
 		reload_bindings(collector.active_champion());
 	}
 	void reload_bindings(const QString &champion)
@@ -92,7 +88,6 @@ public:
 	lol_game_report::online_reports online;
 	bool development_logs{};
 	bool analysis_enabled{};
-	int dpi{800};
 	QString input_path;
 	QString input_champion_;
 	std::pair<qint64, qint64> input_stamp_{};
@@ -110,9 +105,9 @@ void lol_report_manager::update(obs_data *settings)
 {
 	implementation_->update(reinterpret_cast<obs_data_t *>(settings));
 }
-void lol_report_manager::tick(const QRect &game_frame, double radius)
+void lol_report_manager::tick(const QRect &game_frame)
 {
-	implementation_->tick(game_frame, radius);
+	implementation_->tick(game_frame);
 }
 bool lol_report_manager::reveal_development_log() const
 {
@@ -140,7 +135,6 @@ bool lol_report_manager::retry_online_reports()
 void lol_report_manager::defaults(obs_data *settings)
 {
 	auto *value = reinterpret_cast<obs_data_t *>(settings);
-	obs_data_set_default_int(value, dpi_key, 800);
 	obs_data_set_default_bool(value, development_logs_key, false);
 	obs_data_set_default_bool(value, analysis_enabled_key, false);
 	obs_data_set_default_bool(value, upload_enabled_key, true);
@@ -156,7 +150,6 @@ void lol_report_manager::add_properties(obs_properties *properties)
 	obs_properties_add_text(general, "lol_dashboard.report.collector_status", status.toUtf8().constData(),
 				OBS_TEXT_INFO);
 	obs_properties_add_bool(general, analysis_enabled_key, obs_module_text("LoLGameReport.AnalysisEnabled"));
-	obs_properties_add_int(general, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
 	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
 	obs_properties_add_text(general, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
 				OBS_TEXT_DEFAULT);
