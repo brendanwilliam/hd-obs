@@ -224,7 +224,7 @@ int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, 
 	}
 	case lol_dashboard_regions::widget::top_keys: {
 		constexpr int bar_height = 12;
-		constexpr int bar_vertical_spacing = 20;
+		constexpr int bar_vertical_spacing = 12;
 		const int key_label_height = QFontMetrics(dashboard_font(style.numbers_secondary)).height() + 2;
 		const int row_height = key_label_height + 2 + bar_height;
 		return vertical_padding + label_height + style.label_spacing + 8 * row_height +
