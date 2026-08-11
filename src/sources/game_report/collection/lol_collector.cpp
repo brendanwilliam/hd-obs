@@ -1,6 +1,7 @@
 #include "sources/game_report/collection/lol_collector.hpp"
 
 #include "sources/game_report/collection/lol_game_context.hpp"
+#include "sources/game_report/collection/lol_gameplay_keys.hpp"
 #include "sources/game_report/data/lol_diagnostics.hpp"
 
 #include "hook/uiohook_helper.hpp"
@@ -72,6 +73,7 @@ public:
 		if (!active_)
 			game_frame_ = frame;
 	}
+	void set_gameplay_actions(const QHash<QString, QString> &actions) { gameplay_actions_ = actions; }
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
 		if (!active_)
@@ -147,6 +149,7 @@ private:
 		report_.map_number = context.map_number;
 		report_.map = "Map" + QString::number(context.map_number);
 		metrics_.reset();
+		pressed_modifiers_.clear();
 		last_game_seconds_ = context.game_time;
 		anchor_monotonic_ns_ = os_gettime_ns();
 		active_ = true;
@@ -182,6 +185,26 @@ private:
 	void consume_event(const input_data::trace_event &event)
 	{
 		const double seconds = event_game_seconds(event.time_ns);
+		const QString modifier = gameplay_modifier_name(event.code);
+		if (!modifier.isEmpty()) {
+			if (event.type == EVENT_KEY_PRESSED)
+				pressed_modifiers_.insert(modifier);
+			else if (event.type == EVENT_KEY_RELEASED)
+				pressed_modifiers_.remove(modifier);
+			return;
+		}
+		if (event.type == EVENT_KEY_PRESSED) {
+			const QString action = gameplay_actions_.value(gameplay_chord(pressed_modifiers_, event.code));
+			if (!action.isEmpty()) {
+				metrics_.record_action(seconds, gameplay_input::bound_key);
+				report_.local_gameplay_events.append(
+					QJsonObject{{"sequence", QString::number(event.sequence)},
+						    {"game_time_ms", qRound64(seconds * 1000.0)},
+						    {"kind", "bound_key"},
+						    {"action", action}});
+			}
+			return;
+		}
 		if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
 			metrics_.record_motion(seconds, point_for(event), in_frame(event));
 			return;
@@ -228,6 +251,8 @@ private:
 	report report_;
 	v2_metrics metrics_;
 	QRect game_frame_{0, 0, 1920, 1080};
+	QHash<QString, QString> gameplay_actions_;
+	QSet<QString> pressed_modifiers_;
 	std::function<void(const report &)> submission_callback_;
 	diagnostic_log diagnostics_;
 	uint64_t anchor_monotonic_ns_{};

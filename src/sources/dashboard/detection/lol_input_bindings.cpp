@@ -123,6 +123,14 @@ const lol_binding *lol_input_bindings::resolve(const QString &trigger, const QSt
 	const auto found = by_chord_.constFind(canonical_chord(parts));
 	return found == by_chord_.cend() || found->ambiguous ? nullptr : &found.value();
 }
+QHash<QString, QString> lol_input_bindings::gameplay_actions() const
+{
+	QHash<QString, QString> result;
+	for (auto binding = by_chord_.cbegin(); binding != by_chord_.cend(); ++binding)
+		if (!binding->ambiguous)
+			result.insert(binding.key(), binding->action);
+	return result;
+}
 qsizetype lol_input_bindings::size() const
 {
 	return by_chord_.size();

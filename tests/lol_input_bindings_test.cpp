@@ -14,6 +14,7 @@ int main()
 	assert(bindings.resolve("1", {"Shift"}) && bindings.resolve("1", {"Shift"})->action == "normal_cast_item_1");
 	assert(bindings.resolve("4", {"Alt", "Ctrl"}) &&
 	       bindings.resolve("4", {"Alt", "Ctrl"})->action == "smart_cast_trinket");
+	assert(bindings.gameplay_actions().value("Alt+Ctrl+4") == "smart_cast_trinket");
 	assert(!bindings.resolve("1", {}));
 	return 0;
 }

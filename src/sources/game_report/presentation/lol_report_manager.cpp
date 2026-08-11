@@ -1,8 +1,12 @@
 #include "sources/game_report/presentation/lol_report_manager.hpp"
 
 #include "sources/game_report/collection/lol_collector.hpp"
+#include "sources/dashboard/detection/lol_input_bindings.hpp"
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QPointer>
 #include <QProcess>
 #include <obs-module.h>
@@ -12,6 +16,7 @@ namespace {
 constexpr const char *dpi_key = "lol_dashboard.report.mouse_dpi";
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
 constexpr const char *online_service_url_key = "lol_dashboard.report.online_service_url";
+constexpr const char *game_config_key = "lol_dashboard.game_cfg";
 } // namespace
 
 class lol_report_manager::implementation {
@@ -42,6 +47,9 @@ public:
 		dpi = int(obs_data_get_int(settings, dpi_key));
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		online.set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
+		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
+		input_path = game_config.dir().filePath("input.ini");
+		reload_bindings();
 	}
 	void tick(const QRect &game_frame, double hex_radius_percent)
 	{
@@ -52,12 +60,30 @@ public:
 		collector.set_hex_radius_percent(hex_radius_percent);
 		collector.set_game_frame(game_frame);
 		collector.set_development_logs(development_logs);
+		reload_bindings();
 		collector.tick(dpi, hex_radius_percent);
+	}
+	void reload_bindings()
+	{
+		const QFileInfo input(input_path);
+		const std::pair<qint64, qint64> stamp{input.lastModified().toMSecsSinceEpoch(), input.size()};
+		if (input_path.isEmpty() || stamp == input_stamp_)
+			return;
+		input_stamp_ = stamp;
+		QFile file(input_path);
+		if (!file.open(QIODevice::ReadOnly))
+			return;
+		lol_input_bindings bindings;
+		if (!bindings.parse(QString::fromUtf8(file.readAll())))
+			return;
+		collector.set_gameplay_actions(bindings.gameplay_actions());
 	}
 	lol_game_report::collector collector;
 	lol_game_report::online_reports online;
 	bool development_logs{};
 	int dpi{800};
+	QString input_path;
+	std::pair<qint64, qint64> input_stamp_{};
 	static implementation *owner;
 };
 

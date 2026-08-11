@@ -44,6 +44,11 @@ struct shared_collector {
 		QMetaObject::invokeMethod(
 			worker, [this, frame] { worker->set_game_frame(frame); }, Qt::QueuedConnection);
 	}
+	void set_gameplay_actions(const QHash<QString, QString> &actions)
+	{
+		QMetaObject::invokeMethod(
+			worker, [this, actions] { worker->set_gameplay_actions(actions); }, Qt::QueuedConnection);
+	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
 		if (!events.empty())
@@ -117,6 +122,10 @@ void collector::set_hex_radius_percent(double radius_percent)
 void collector::set_game_frame(const QRect &frame)
 {
 	shared().set_game_frame(frame);
+}
+void collector::set_gameplay_actions(const QHash<QString, QString> &actions)
+{
+	shared().set_gameplay_actions(actions);
 }
 void collector::tick(int dpi, double hex_radius_percent)
 {

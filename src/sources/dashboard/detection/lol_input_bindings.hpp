@@ -17,6 +17,7 @@ class lol_input_bindings {
 public:
 	bool parse(const QString &contents, const QString &champion = {});
 	const lol_binding *resolve(const QString &trigger, const QStringList &modifiers) const;
+	QHash<QString, QString> gameplay_actions() const;
 	qsizetype size() const;
 
 private:
