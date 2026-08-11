@@ -10,12 +10,14 @@
 #include <QPointer>
 #include <QThread>
 
+#include <algorithm>
 #include <memory>
 
 #include <obs-module.h>
 
 namespace sources {
 namespace {
+constexpr const char *dpi_key = "lol_dashboard.report.mouse_dpi";
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
 constexpr const char *upload_enabled_key = "lol_dashboard.report.upload_enabled";
 constexpr const char *analysis_enabled_key = "lol_dashboard.report.analysis_enabled";
@@ -64,6 +66,7 @@ public:
 	}
 	void update(obs_data_t *settings)
 	{
+		mouse_dpi = std::clamp(int(obs_data_get_int(settings, dpi_key)), 100, 32000);
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		analysis_enabled = obs_data_get_bool(settings, analysis_enabled_key);
 		collector.set_enabled(analysis_enabled);
@@ -106,6 +109,7 @@ public:
 	std::unique_ptr<lol_game_report::online_reports> online;
 	bool development_logs{};
 	bool analysis_enabled{};
+	int mouse_dpi{800};
 	QString input_path;
 	QString input_champion_;
 	std::pair<qint64, qint64> input_stamp_{};
@@ -126,6 +130,10 @@ void lol_report_manager::update(obs_data *settings)
 void lol_report_manager::tick(const QRect &game_frame)
 {
 	implementation_->tick(game_frame);
+}
+int lol_report_manager::mouse_dpi() const
+{
+	return implementation_->mouse_dpi;
 }
 bool lol_report_manager::link_online_reports()
 {
@@ -169,6 +177,7 @@ bool lol_report_manager::retry_online_reports()
 void lol_report_manager::defaults(obs_data *settings)
 {
 	auto *value = reinterpret_cast<obs_data_t *>(settings);
+	obs_data_set_default_int(value, dpi_key, 800);
 	obs_data_set_default_bool(value, development_logs_key, false);
 	obs_data_set_default_bool(value, analysis_enabled_key, false);
 	obs_data_set_default_bool(value, upload_enabled_key, true);
@@ -178,6 +187,7 @@ void lol_report_manager::add_properties(obs_properties *properties)
 	auto *props = reinterpret_cast<obs_properties_t *>(properties);
 	auto *online = obs_properties_create();
 	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
+	obs_properties_add_int(online, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
 	const QString status =
 		QString("%1: %2").arg(obs_module_text("LoLGameReport.CollectorStatus"),
 				      lol_game_report::collector::state_text(implementation_->collector.state()));
