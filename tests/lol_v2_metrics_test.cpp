@@ -19,7 +19,7 @@ int main()
 	assert(series.size() == 5);
 	assert(series[2].apm == 60.0 && series[2].mouse_velocity == 10.0 / 3.0);
 	assert(series[3].apm == 40.0 && series[3].mouse_velocity == 10.0 / 3.0);
-	assert(series[4].apm == 20.0 && series[4].mouse_velocity == 0.0);
+	assert(series[4].apm == 20.0 && series[4].mouse_velocity == 5.0 / 3.0);
 	const metric_summary summary = metrics.summary();
 	assert(summary.left_clicks == 1 && summary.right_clicks == 1 && summary.gameplay_key_actions == 1);
 	assert(summary.peak_apm == 60.0 && summary.median_apm == 40.0);

@@ -1,5 +1,6 @@
 #include "sources/game_report/data/lol_types.hpp"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <cassert>
 

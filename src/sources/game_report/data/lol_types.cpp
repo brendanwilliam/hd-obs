@@ -36,7 +36,7 @@ QJsonArray strings_json(const QStringList &values)
 QJsonObject to_json(const report &v)
 {
 	QString game_name = v.player, tag_line = "unknown";
-	const int separator = game_name.lastIndexOf('#');
+	const qsizetype separator = game_name.lastIndexOf('#');
 	if (separator > 0) {
 		tag_line = game_name.mid(separator + 1);
 		game_name.truncate(separator);
@@ -57,7 +57,7 @@ QJsonObject to_json(const report &v)
 		if (values.isEmpty())
 			return 0.0;
 		std::sort(values.begin(), values.end());
-		const int middle = values.size() / 2;
+		const qsizetype middle = values.size() / 2;
 		return values.size() % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
 	};
 	return {{"schema_version", 2},

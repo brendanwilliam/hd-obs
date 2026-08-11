@@ -77,7 +77,7 @@ metric_summary v2_metrics::summary() const
 		if (values.isEmpty())
 			return 0.0;
 		std::sort(values.begin(), values.end());
-		const int middle = values.size() / 2;
+		const qsizetype middle = values.size() / 2;
 		return values.size() % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
 	};
 	result.median_apm = median(apm);
