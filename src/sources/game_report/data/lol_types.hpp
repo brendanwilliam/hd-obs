@@ -57,7 +57,7 @@ struct chapter {
 };
 
 struct report {
-	int schema_version{4};
+	int schema_version{2};
 	QString id;
 	QDateTime completed_at;
 	QString player;

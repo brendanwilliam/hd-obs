@@ -1,7 +1,6 @@
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
 #include <QCoreApplication>
-#include <QDesktopServices>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -33,8 +32,9 @@ struct pending_report {
 	int attempts{};
 };
 
-QString payload_hash(const QJsonObject &value)
+QString payload_hash(QJsonObject value)
 {
+	value.remove("payload_hash");
 	return QString::fromLatin1(QCryptographicHash::hash(QJsonDocument(value).toJson(QJsonDocument::Compact),
 							    QCryptographicHash::Sha256)
 					   .toHex());
@@ -141,13 +141,14 @@ void online_reports::clear_credential() const
 
 void online_reports::submit(const report &value)
 {
-	const QJsonObject payload = to_json(value);
+	QJsonObject payload = to_json(value);
 	const QString hash = payload_hash(payload);
+	payload.insert("payload_hash", hash);
 	if (implementation_->uploaded_payloads.value(value.id) == hash)
 		return;
 	bool found{};
 	for (auto &entry : implementation_->queue) {
-		if (entry.payload["id"] == value.id) {
+		if (entry.payload["report_id"] == value.id) {
 			found = true;
 			if (payload_hash(entry.payload) != hash) {
 				entry.payload = payload;
@@ -179,26 +180,26 @@ void online_reports::tick()
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/reports")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	request.setRawHeader("Authorization", "Bearer " + credential().toUtf8());
-	request.setRawHeader("Idempotency-Key", entry.payload["id"].toString().toUtf8());
+	request.setRawHeader("Idempotency-Key", entry.payload["report_id"].toString().toUtf8());
 	implementation_->upload_in_flight = true;
 	auto *reply =
 		implementation_->network.post(request, QJsonDocument(entry.payload).toJson(QJsonDocument::Compact));
 	connect(reply, &QNetworkReply::finished, this, [this, reply] {
 		implementation_->upload_in_flight = false;
 		const int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		const QJsonObject result = QJsonDocument::fromJson(reply->readAll()).object();
+		const QString result_status = result["status"].toString();
 		if (!implementation_->queue.isEmpty() && reply->error() == QNetworkReply::NoError && code >= 200 &&
-		    code < 300) {
+		    code < 300 && (result_status == "accepted" || result_status == "duplicate")) {
 			const QJsonObject uploaded = implementation_->queue.first().payload;
-			const QJsonObject result = QJsonDocument::fromJson(reply->readAll()).object();
 			implementation_->queue.removeFirst();
-			implementation_->uploaded_payloads.insert(uploaded["id"].toString(), payload_hash(uploaded));
+			implementation_->uploaded_payloads.insert(uploaded["report_id"].toString(),
+								  uploaded["payload_hash"].toString());
 			implementation_->state = implementation_->queue.isEmpty() ? "Connected. All reports uploaded."
 										  : "Connected. Uploading reports.";
-			QUrl report_url(result["url"].toString());
-			if (report_url.isRelative())
-				report_url = implementation_->service_url.resolved(report_url);
-			if (report_url.isValid() && !report_url.isEmpty())
-				QDesktopServices::openUrl(report_url);
+		} else if (!implementation_->queue.isEmpty() && result_status == "rejected") {
+			implementation_->state = "Upload rejected. Update Hands Diff before retrying this report.";
+			implementation_->queue.first().retry_at = QDateTime::currentDateTimeUtc().addYears(10);
 		} else if (code == 401 || code == 403) {
 			implementation_->auth_required = true;
 			implementation_->state =

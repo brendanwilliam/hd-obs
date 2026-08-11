@@ -35,135 +35,72 @@ QJsonArray strings_json(const QStringList &values)
 
 QJsonObject to_json(const report &v)
 {
-	QJsonArray samples, events, abilities, item_events, input, hexbins, chapters;
-	for (const auto &s : v.samples)
-		samples.append(sample_json(s));
-	for (const auto &e : v.events)
-		events.append(QJsonObject{{"id", e.id},
-					  {"type", e.type},
-					  {"seconds", e.seconds},
-					  {"detail", e.detail},
-					  {"category", e.category}});
-	for (const auto &a : v.abilities)
-		abilities.append(QJsonObject{{"ability", a.ability}, {"level", a.level}, {"seconds", a.seconds}});
-	for (const auto &i : v.item_events)
-		item_events.append(QJsonObject{{"item", i.item}, {"item_id", i.item_id}, {"seconds", i.seconds}});
-	for (const auto &i : v.input_samples)
-		input.append(QJsonObject{{"seconds", i.seconds},
-					 {"actions", i.actions},
-					 {"mouse_distance_pixels", i.mouse_distance_pixels},
-					 {"max_velocity_pixels_per_second", i.max_velocity_pixels_per_second}});
-	for (const auto &h : v.hexbins)
-		hexbins.append(QJsonObject{{"column", h.column}, {"row", h.row}, {"dwell_ms", double(h.dwell_ms)}});
-	for (const auto &c : v.chapters)
-		chapters.append(QJsonObject{{"start_seconds", c.start_seconds},
-					    {"end_seconds", c.end_seconds},
-					    {"summary", c.summary}});
-	return {{"schema_version", 4},
-		{"id", v.id},
-		{"completed_at", v.completed_at.toUTC().toString(Qt::ISODateWithMs)},
-		{"player", v.player},
-		{"game_mode", v.game_mode},
-		{"map", v.map},
-		{"outcome", v.outcome},
-		{"champion", v.champion},
-		{"role", v.role},
-		{"game_id", v.game_id},
-		{"duration_seconds", v.duration_seconds},
-		{"team_gold", v.team_gold},
-		{"enemy_team_gold", v.enemy_team_gold},
-		{"team_kills", v.team_kills},
-		{"enemy_team_kills", v.enemy_team_kills},
-		{"samples", samples},
-		{"events", events},
-		{"items", strings_json(v.items)},
-		{"runes", strings_json(v.runes)},
-		{"abilities", abilities},
-		{"item_events", item_events},
-		{"input_samples", input},
-		{"hex_radius_percent", v.hex_geometry.radius_percent},
-		{"frame_aspect_ratio", v.hex_geometry.frame_aspect_ratio},
-		{"hexbins", hexbins},
-		{"hexbin_estimated", v.hexbin_estimated},
-		{"dpi", v.dpi},
-		{"assets", v.assets},
-		{"chapters", chapters},
-		{"enrichment", v.enrichment}};
+	QString game_name = v.player, tag_line = "unknown";
+	const int separator = game_name.lastIndexOf('#');
+	if (separator > 0) {
+		tag_line = game_name.mid(separator + 1);
+		game_name.truncate(separator);
+	}
+	QJsonArray intensity;
+	double peak_apm{}, peak_velocity{};
+	QVector<double> apm, velocity;
+	for (const auto &sample : v.input_samples) {
+		const double value = sample.actions * 20.0;
+		const double movement = sample.max_velocity_pixels_per_second;
+		intensity.append(QJsonObject{{"second", sample.seconds}, {"apm", value}, {"mouse_velocity", movement}});
+		apm.append(value);
+		velocity.append(movement);
+		peak_apm = std::max(peak_apm, value);
+		peak_velocity = std::max(peak_velocity, movement);
+	}
+	auto median = [](QVector<double> values) {
+		if (values.isEmpty())
+			return 0.0;
+		std::sort(values.begin(), values.end());
+		const int middle = values.size() / 2;
+		return values.size() % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
+	};
+	return {{"schema_version", 2},
+		{"report_id", v.id},
+		{"capture_policy_version", 1},
+		{"capture",
+		 QJsonObject{{"started_at_utc",
+			      v.completed_at.addSecs(-v.duration_seconds).toUTC().toString(Qt::ISODateWithMs)},
+			     {"duration_ms", v.duration_seconds * 1000},
+			     {"game_mode", "CLASSIC"},
+			     {"map_number", 11},
+			     {"riot_id", QJsonObject{{"game_name", game_name}, {"tag_line", tag_line}}},
+			     {"frontmost_capture", true},
+			     {"complete", v.duration_seconds > 0},
+			     {"event_detail_truncated", false}}},
+		{"input", QJsonObject{{"left_clicks", 0},
+				      {"right_clicks", 0},
+				      {"gameplay_key_actions", 0},
+				      {"intensity_by_second", intensity},
+				      {"summary", QJsonObject{{"peak_apm", peak_apm},
+							      {"median_apm", median(apm)},
+							      {"peak_mouse_velocity", peak_velocity},
+							      {"median_mouse_velocity", median(velocity)}}}}},
+		{"live_context", QJsonObject{{"changes", QJsonArray{}}}}};
 }
 
 bool from_json(const QJsonObject &o, report &v)
 {
-	const int version = o["schema_version"].toInt();
-	if ((version < 1 || version > 4) || o["id"].toString().isEmpty())
+	if (o["schema_version"].toInt() != 2 || o["report_id"].toString().isEmpty())
 		return false;
 	v = {};
-	v.schema_version = version;
-	v.id = o["id"].toString();
-	v.completed_at = QDateTime::fromString(o["completed_at"].toString(), Qt::ISODateWithMs);
-	v.player = o["player"].toString();
-	v.game_mode = o["game_mode"].toString();
-	v.map = o["map"].toString();
-	v.outcome = o["outcome"].toString("unavailable");
-	v.champion = o["champion"].toString();
-	v.role = o["role"].toString();
-	v.game_id = o["game_id"].toString();
-	v.duration_seconds = o["duration_seconds"].toInt();
-	v.team_gold = o["team_gold"].toInt();
-	v.enemy_team_gold = o["enemy_team_gold"].toInt();
-	v.team_kills = o["team_kills"].toInt();
-	v.enemy_team_kills = o["enemy_team_kills"].toInt();
-	v.dpi = o["dpi"].toInt(800);
-	v.assets = o["assets"].toObject();
-	v.enrichment = o["enrichment"].toObject();
-	for (const auto x : o["samples"].toArray())
-		v.samples.append(sample_from_json(x.toObject()));
-	for (const auto x : o["events"].toArray()) {
-		const auto e = x.toObject();
-		v.events.append({e["id"].toString(), e["type"].toString(), e["seconds"].toInt(), e["detail"].toString(),
-				 e["category"].toString(classify_event(e["type"].toString()))});
-	}
-	for (const auto x : o["items"].toArray())
-		v.items.append(x.toString());
-	for (const auto x : o["runes"].toArray())
-		v.runes.append(x.toString());
-	for (const auto x : o["abilities"].toArray()) {
-		const auto a = x.toObject();
-		v.abilities.append({a["ability"].toString(), a["level"].toInt(), a["seconds"].toInt()});
-	}
-	for (const auto x : o["item_events"].toArray()) {
-		const auto i = x.toObject();
-		v.item_events.append({i["item"].toString(), i["item_id"].toInt(), i["seconds"].toInt()});
-	}
-	for (const auto x : o["input_samples"].toArray()) {
-		const auto i = x.toObject();
-		v.input_samples.append({i["seconds"].toInt(), i["actions"].toInt(),
-					i["mouse_distance_pixels"].toDouble(),
-					i["max_velocity_pixels_per_second"].toDouble()});
-	}
-	if (version >= 3) {
-		v.hex_geometry.radius_percent =
-			std::clamp(o["hex_radius_percent"].toDouble(default_hex_radius_percent), 0.1, 100.0);
-		v.hex_geometry.frame_aspect_ratio = std::max(0.01, o["frame_aspect_ratio"].toDouble(16.0 / 9.0));
-		v.hexbin_estimated = o["hexbin_estimated"].toBool();
-		for (const auto x : o["hexbins"].toArray()) {
-			const auto h = x.toObject();
-			v.hexbins.append({h["column"].toInt(), h["row"].toInt(), uint64_t(h["dwell_ms"].toDouble())});
-		}
-	} else {
-		v.hexbin_estimated = true;
-		for (const auto x : o["heatmap"].toArray()) {
-			const auto h = x.toObject();
-			const QPointF point((h["x"].toInt() + 0.5) * 100.0 / 30.0,
-					    (h["y"].toInt() + 0.5) * lol_game_report::canonical_height(v.hex_geometry) /
-						    17.0);
-			add_hex_dwell(v.hexbins, nearest_hex(v.hex_geometry, point),
-				      uint64_t(std::max(0, h["count"].toInt())));
-		}
-		v.schema_version = 4;
-	}
-	for (const auto x : o["chapters"].toArray()) {
-		const auto c = x.toObject();
-		v.chapters.append({c["start_seconds"].toInt(), c["end_seconds"].toInt(), c["summary"].toString()});
+	v.id = o["report_id"].toString();
+	const QJsonObject capture = o["capture"].toObject();
+	const QJsonObject riot_id = capture["riot_id"].toObject();
+	v.player = riot_id["game_name"].toString() + "#" + riot_id["tag_line"].toString();
+	v.completed_at = QDateTime::fromString(capture["started_at_utc"].toString(), Qt::ISODateWithMs)
+				 .addMSecs(capture["duration_ms"].toInt());
+	v.duration_seconds = capture["duration_ms"].toInt() / 1000;
+	v.game_mode = capture["game_mode"].toString();
+	for (const auto value : o["input"].toObject()["intensity_by_second"].toArray()) {
+		const QJsonObject sample = value.toObject();
+		v.input_samples.append({sample["second"].toInt(), int(sample["apm"].toDouble() / 20.0), 0,
+					sample["mouse_velocity"].toDouble()});
 	}
 	return true;
 }
