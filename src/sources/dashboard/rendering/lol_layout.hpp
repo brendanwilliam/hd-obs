@@ -68,6 +68,9 @@ struct lol_dashboard_panels {
 // permitted section.
 std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_rect &bounds, int count,
 							    bool horizontal, int gap = 10);
+std::array<lol_dashboard_rect, 4> lol_dashboard_split_weighted_slots(const lol_dashboard_rect &bounds,
+								     const std::array<int, 4> &weights, int count,
+								     bool horizontal, int gap = 10);
 
 lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect);
 lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect);

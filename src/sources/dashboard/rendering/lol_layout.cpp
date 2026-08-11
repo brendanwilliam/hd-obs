@@ -81,6 +81,36 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_
 	return result;
 }
 
+std::array<lol_dashboard_rect, 4> lol_dashboard_split_weighted_slots(const lol_dashboard_rect &bounds,
+								     const std::array<int, 4> &weights, int count,
+								     bool horizontal, int gap)
+{
+	std::array<lol_dashboard_rect, 4> result{};
+	count = std::clamp(count, 0, 4);
+	if (bounds.isEmpty() || count == 0)
+		return result;
+	gap = std::max(0, gap);
+	const int length = horizontal ? bounds.width() : bounds.height();
+	const int usable = std::max(0, length - gap * (count - 1));
+	int total_weight = 0;
+	for (int index = 0; index < count; ++index)
+		total_weight += std::max(1, weights[index]);
+	int offset = 0, consumed_weight = 0;
+	for (int index = 0; index < count; ++index) {
+		const int weight = std::max(1, weights[index]);
+		const int start = consumed_weight * usable / total_weight;
+		const int end = (consumed_weight + weight) * usable / total_weight;
+		const int size = std::max(1, end - start);
+		if (horizontal)
+			result[index] = {bounds.left() + offset, bounds.top(), size, bounds.height()};
+		else
+			result[index] = {bounds.left(), bounds.top() + offset, bounds.width(), size};
+		offset += size + gap;
+		consumed_weight += weight;
+	}
+	return result;
+}
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
 						    const lol_dashboard_image_layout &minimap_cover, int hud_padding)

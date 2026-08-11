@@ -87,6 +87,7 @@ int main()
 	auto left_anchored_widescreen_heatmap = sources::lol_dashboard_aspect_fit_left({0, 0, 112, 28}, 16.0 / 9.0);
 	auto horizontal_slots = sources::lol_dashboard_split_slots({0, 0, 100, 20}, 4, true, 4);
 	auto vertical_slots = sources::lol_dashboard_split_slots({0, 0, 20, 100}, 3, false, 5);
+	auto weighted_slots = sources::lol_dashboard_split_weighted_slots({0, 0, 100, 20}, {3, 1, 1, 1}, 3, true, 4);
 	if (!require(!default_panels.camera_visible) || !require(edge_panels.header.top() == 0) ||
 	    !require(edge_panels.keys.right() == min_model.game.width - 1) ||
 	    !require(edge_panels.heatmap.left() == 0) || !require(edge_panels.summary.left() >= 0) ||
@@ -101,7 +102,8 @@ int main()
 	    !require(ultrawide_heatmap.width() == 65) || !require(ultrawide_heatmap.height() == 28) ||
 	    !require(left_anchored_widescreen_heatmap.left() == 0) || !require(horizontal_slots[0].width() == 22) ||
 	    !require(horizontal_slots[3].right() == 99) || !require(vertical_slots[0].height() == 30) ||
-	    !require(vertical_slots[2].bottom() == 99) ||
+	    !require(vertical_slots[2].bottom() == 99) || !require(weighted_slots[0].width() == 55) ||
+	    !require(weighted_slots[2].right() == 99) ||
 	    !require(sources::lol_dashboard_split_slots({}, 2, true)[0].isEmpty()))
 		return 1;
 	sources::lol_dashboard_camera_layout camera{true, false, 16.0 / 9.0, 100, 100, 100, 0, 0};

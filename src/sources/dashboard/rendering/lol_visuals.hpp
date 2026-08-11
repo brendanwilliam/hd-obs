@@ -4,6 +4,7 @@
 #include "sources/dashboard/rendering/lol_layout.hpp"
 
 #include <QColor>
+#include <QHash>
 #include <QPointF>
 #include <QRect>
 #include <array>
@@ -38,6 +39,8 @@ struct lol_dashboard_regions {
 	section left{true, 3, {widget::mouse_activity, widget::cumulative_totals, widget::mouse_distance}};
 	section right{true, 2, {widget::live_keys, widget::top_keys}};
 };
+
+int lol_dashboard_widget_layout_weight(lol_dashboard_regions::widget widget, bool horizontal);
 
 struct lol_dashboard_trail_filter {
 	bool middle_clicks{};
@@ -83,6 +86,7 @@ public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
 		       int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
 		       const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter);
+	void set_gameplay_actions(const QHash<QString, QString> &actions);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void clear_live_keys();
@@ -93,8 +97,13 @@ public:
 private:
 	struct trail_event {
 		QPointF point;
+		uint64_t time_ns{};
 		uint16_t button{};
 		QString label;
+	};
+	struct motion_sample {
+		QPointF point;
+		uint64_t time_ns{};
 	};
 	struct active_key {
 		uint16_t code;
@@ -125,6 +134,9 @@ private:
 	QRect pointer_bounds_;
 	std::optional<QPointF> pointer_;
 	std::deque<trail_event> trail_;
+	std::deque<motion_sample> motion_trail_;
+	input_data::button_map<uint16_t> mouse_;
+	QHash<QString, QString> gameplay_actions_;
 	std::optional<QPoint> last_distance_;
 	std::optional<input_data::trace_event> last_motion_;
 	std::unordered_map<uint16_t, bool> held_;

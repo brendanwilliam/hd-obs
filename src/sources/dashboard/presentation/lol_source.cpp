@@ -3,6 +3,7 @@
 #include "sources/dashboard/capture/lol_capture_switcher.hpp"
 #include "sources/dashboard/detection/lol_game_config_watcher.hpp"
 #include "sources/dashboard/detection/lol_game_start_watcher.hpp"
+#include "sources/dashboard/detection/lol_input_bindings.hpp"
 #include "sources/dashboard/presentation/lol_dashboard_settings.hpp"
 #include "sources/dashboard/presentation/lol_dashboard_helpers.hpp"
 #include "sources/dashboard/presentation/lol_source.hpp"
@@ -131,6 +132,7 @@ public:
 		const int top = advanced_positioning_ ? int(obs_data_get_int(settings, "lol_dashboard.frame_top")) : 0;
 		regions_ = lol_dashboard_regions_from_settings(reinterpret_cast<obs_data *>(settings));
 		trail_filter_ = lol_dashboard_trail_filter_from_settings(reinterpret_cast<obs_data *>(settings));
+		load_gameplay_actions(QString::fromUtf8(obs_data_get_string(settings, path_key)));
 		theme_ = {lol_dashboard_obs_color(uint32_t(obs_data_get_int(settings, "activity.inactive_color"))),
 			  lol_dashboard_obs_color(uint32_t(obs_data_get_int(settings, "activity.active_color"))),
 			  lol_dashboard_obs_color(uint32_t(obs_data_get_int(settings, "activity.background_color")))};
@@ -177,6 +179,7 @@ public:
 							panels.camera.width(), panels.camera.height());
 		visuals_.configure(theme_, regions_, rolling_window_seconds, frame_,
 				   lol_dashboard_qrect(panels.heatmap), style_, trail_filter_);
+		visuals_.set_gameplay_actions(gameplay_actions_);
 		if (!analysis_enabled_) {
 			visuals_.clear_live_keys();
 			discard_backlog_ = true;
@@ -206,16 +209,57 @@ public:
 			painter.fillRect(lol_dashboard_qrect(panels.camera_mask), camera_background_color_);
 		if (game_visible_) {
 			if (analysis_enabled_) {
-				const auto top = lol_dashboard_split_slots(panels.header, regions_.top.count, true,
-									   style_.element_x_gap);
-				const auto left = lol_dashboard_split_slots(panels.heatmap, regions_.left.count, false,
-									    style_.element_y_gap);
-				const auto right = lol_dashboard_split_slots(panels.keys, regions_.right.count, false,
-									     style_.element_y_gap);
+				const auto weights_for = [](const lol_dashboard_regions::section &section,
+							    bool horizontal) {
+					std::array<int, 4> weights{};
+					for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
+						weights[index] = lol_dashboard_widget_layout_weight(
+							section.widgets[index], horizontal);
+					return weights;
+				};
+				const auto top = lol_dashboard_split_weighted_slots(panels.header,
+										    weights_for(regions_.top, true),
+										    regions_.top.count, true,
+										    style_.element_x_gap);
+				const auto right = lol_dashboard_split_weighted_slots(
+					panels.keys, weights_for(regions_.right, false), regions_.right.count, false,
+					style_.element_y_gap);
 				std::array<QRect, 4> top_rects{}, left_rects{}, right_rects{};
+				int mouse_slot = -1;
+				for (int index = 0; index < std::clamp(regions_.left.count, 0, 4); ++index)
+					if (regions_.left.widgets[index] ==
+					    lol_dashboard_regions::widget::mouse_activity) {
+						mouse_slot = index;
+						break;
+					}
+				if (mouse_slot >= 0) {
+					left_rects[mouse_slot] = lol_dashboard_qrect(panels.heatmap);
+					std::array<int, 4> summary_weights{};
+					std::array<int, 4> summary_indexes{};
+					int summary_count = 0;
+					for (int index = 0; index < std::clamp(regions_.left.count, 0, 4); ++index)
+						if (index != mouse_slot) {
+							summary_weights[summary_count] =
+								lol_dashboard_widget_layout_weight(
+									regions_.left.widgets[index], false);
+							summary_indexes[summary_count++] = index;
+						}
+					const auto summary = lol_dashboard_split_weighted_slots(panels.summary,
+												summary_weights,
+												summary_count, false,
+												style_.element_y_gap);
+					for (int index = 0; index < summary_count; ++index)
+						left_rects[summary_indexes[index]] =
+							lol_dashboard_qrect(summary[index]);
+				} else {
+					const auto left = lol_dashboard_split_weighted_slots(
+						panels.heatmap, weights_for(regions_.left, false), regions_.left.count,
+						false, style_.element_y_gap);
+					for (int index = 0; index < 4; ++index)
+						left_rects[index] = lol_dashboard_qrect(left[index]);
+				}
 				for (int index = 0; index < 4; ++index) {
 					top_rects[index] = lol_dashboard_qrect(top[index]);
-					left_rects[index] = lol_dashboard_qrect(left[index]);
 					right_rects[index] = lol_dashboard_qrect(right[index]);
 				}
 				visuals_.draw(painter, top_rects, left_rects, right_rects);
@@ -242,6 +286,16 @@ public:
 		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), texture_);
 		gs_draw_sprite(texture_, 0, width, height);
 		gs_blend_state_pop();
+	}
+	void load_gameplay_actions(const QString &game_config_path)
+	{
+		gameplay_actions_.clear();
+		QFile input(QFileInfo(game_config_path).dir().filePath("input.ini"));
+		if (!input.open(QIODevice::ReadOnly))
+			return;
+		lol_input_bindings bindings;
+		if (bindings.parse(QString::fromUtf8(input.readAll())))
+			gameplay_actions_ = bindings.gameplay_actions();
 	}
 	uint32_t width() const { return layout_ ? uint32_t(layout_->game.width) : 1; }
 	uint32_t height() const { return layout_ ? uint32_t(layout_->game.height) : 1; }
@@ -345,6 +399,7 @@ private:
 	lol_dashboard_theme theme_;
 	lol_dashboard_regions regions_;
 	lol_dashboard_trail_filter trail_filter_;
+	QHash<QString, QString> gameplay_actions_;
 	lol_dashboard_style style_;
 	lol_dashboard_game_start_watcher game_start_watcher_;
 	uint64_t game_start_cursor_{};

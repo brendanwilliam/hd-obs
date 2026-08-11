@@ -19,9 +19,11 @@ void lol_dashboard_visuals::reset()
 {
 	pointer_.reset();
 	trail_.clear();
+	motion_trail_.clear();
 	last_distance_.reset();
 	last_motion_.reset();
 	held_.clear();
+	mouse_.clear();
 	press_counts_.clear();
 	active_keys_.clear();
 	samples_.clear();
