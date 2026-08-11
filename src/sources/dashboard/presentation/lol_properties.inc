@@ -24,19 +24,6 @@ bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs
 				 obs_data_get_bool(settings, "lol_dashboard.advanced_positioning"));
 	return true;
 }
-bool heatmap_gradient_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
-{
-	const bool custom = std::string(obs_data_get_string(settings, "lol_dashboard.heatmap_gradient")) == "custom";
-	for (const char *name :
-	     {"lol_dashboard.gradient_low", "lol_dashboard.gradient_middle", "lol_dashboard.gradient_high"})
-		obs_property_set_visible(obs_properties_get(props, name), custom);
-	return true;
-}
-bool heatmap_radius_changed(obs_properties_t *, obs_property_t *, obs_data_t *settings)
-{
-	lol_heatmap::set_radius_percent(obs_data_get_double(settings, "lol_dashboard.hex_radius_percent"));
-	return true;
-}
 bool camera_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const bool visible = obs_data_get_bool(settings, "lol_dashboard.show_camera");
@@ -122,12 +109,6 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "activity.inactive_color", 0xff425e62);
 	obs_data_set_default_int(settings, "activity.active_color", 0xff83c1dd);
 	obs_data_set_default_int(settings, "activity.background_color", 0x00000000);
-	obs_data_set_default_string(settings, "lol_dashboard.heatmap_gradient", "spectrum");
-	obs_data_set_default_int(settings, "lol_dashboard.gradient_low", 0xffeb6325);
-	obs_data_set_default_int(settings, "lol_dashboard.gradient_middle", 0xff15ccfa);
-	obs_data_set_default_int(settings, "lol_dashboard.gradient_high", 0xff4444ef);
-	obs_data_set_default_int(settings, "lol_dashboard.hex_size", 10);
-	obs_data_set_default_double(settings, "lol_dashboard.hex_radius_percent", lol_heatmap::default_radius_percent);
 	obs_data_set_default_int(settings, "lol_dashboard.section_padding", 20);
 	obs_data_set_default_int(settings, "lol_dashboard.element_padding", 20);
 	obs_data_set_default_int(settings, "lol_dashboard.element_x_gap", 10);
@@ -332,32 +313,8 @@ obs_properties_t *properties(void *data)
 		obs_properties_add_int_slider(group_properties, (prefix + ".size").c_str(),
 					      obs_module_text("LoLPerformanceDashboard.FontSize"), 8, 100, 1);
 	}
-	auto *heatmap = obs_properties_add_group(properties, "lol_dashboard.heatmap",
-						 obs_module_text("MouseActivity.HeatmapGradient"), OBS_GROUP_NORMAL,
-						 obs_properties_create());
-	auto *heatmap_properties = obs_property_group_content(heatmap);
-	auto *gradient = obs_properties_add_list(heatmap_properties, "lol_dashboard.heatmap_gradient",
-						 obs_module_text("MouseActivity.HeatmapGradient"), OBS_COMBO_TYPE_LIST,
-						 OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Spectrum"), "spectrum");
-	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Lime"), "lime");
-	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Ocean"), "ocean");
-	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.MatchTheme"), "theme");
-	obs_property_list_add_string(gradient, obs_module_text("MouseActivity.HeatmapGradient.Custom"), "custom");
-	obs_property_set_modified_callback(gradient, heatmap_gradient_changed);
-	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_low",
-				       obs_module_text("MouseActivity.CustomGradientLow"));
-	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_middle",
-				       obs_module_text("MouseActivity.CustomGradientMiddle"));
-	obs_properties_add_color_alpha(heatmap_properties, "lol_dashboard.gradient_high",
-				       obs_module_text("MouseActivity.CustomGradientHigh"));
-	auto *radius = obs_properties_add_float_slider(heatmap_properties, "lol_dashboard.hex_radius_percent",
-						       obs_module_text("MouseActivity.HexSize"), 0.1, 20.0, 0.1);
-	obs_property_set_modified_callback(radius, heatmap_radius_changed);
 	if (data) {
 		auto *settings = obs_source_get_settings(static_cast<dashboard_source *>(data)->source());
-		obs_data_set_double(settings, "lol_dashboard.hex_radius_percent", lol_heatmap::radius_percent());
-		heatmap_gradient_changed(heatmap_properties, nullptr, settings);
 		camera_changed(camera_properties, nullptr, settings);
 		minimap_cover_changed(cover_properties, nullptr, settings);
 		typography_changed(typography_properties, nullptr, settings);

@@ -1,7 +1,5 @@
 #include "sources/dashboard/rendering/lol_visuals.hpp"
 #include "sources/dashboard/rendering/lol_key_labels.hpp"
-#include "sources/heatmap/lol_geometry.hpp"
-#include "sources/heatmap/lol_settings.hpp"
 
 #include <QFont>
 #include <QFontDatabase>
@@ -16,7 +14,6 @@
 namespace sources {
 namespace {
 constexpr uint64_t second_ns = 1000000000ULL;
-constexpr uint64_t max_heatmap_gap_ns = 250000000ULL;
 constexpr uint64_t live_key_fade_ns = 1500000000ULL;
 
 void ensure_dashboard_fonts_registered()
@@ -52,9 +49,8 @@ QString dashboard_text(const QString &text, const lol_dashboard_font_style &styl
 }
 } // namespace
 
-void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
-				      const lol_dashboard_regions &regions, int rolling_window_seconds,
-				      const QRect &game_frame, const QRect &heatmap_bounds,
+void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
+				      int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
 				      const lol_dashboard_style &style)
 {
 	theme_ = theme;
@@ -62,14 +58,7 @@ void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lo
 	style_ = style;
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
-	const QRect content_bounds = lol_dashboard_heatmap_content_bounds(heatmap_bounds, game_frame_, style_);
-	lol_heatmap::migrate_legacy_radius(int(heatmap.radius), content_bounds.width());
-	const qreal radius = content_bounds.width() * lol_heatmap::radius_percent() / 100.0;
-	const bool hex_size_changed = heatmap_.radius != radius;
-	heatmap_ = heatmap;
-	heatmap_.radius = radius;
-	if (content_bounds != heatmap_bounds_ || hex_size_changed)
-		resize_heatmap(content_bounds);
+	pointer_bounds_ = lol_dashboard_heatmap_content_bounds(pointer_bounds, game_frame_, style_);
 }
 
 QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
@@ -84,21 +73,6 @@ QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &gam
 	return {fitted.x(), fitted.y(), fitted.width(), fitted.height()};
 }
 
-void lol_dashboard_visuals::resize_heatmap(const QRect &bounds)
-{
-	heatmap_bounds_ = bounds;
-	hex_bins_.clear();
-	last_heat_point_.reset();
-	if (bounds.isEmpty())
-		return;
-	const lol_heatmap::grid grid{double(game_frame_.width()) / std::max(1, game_frame_.height()),
-				     100.0 * heatmap_.radius / bounds.width()};
-	for (const lol_heatmap::cell &cell : lol_heatmap::visible_cells(grid)) {
-		const QPointF canonical = lol_heatmap::center(grid, cell.column, cell.row);
-		hex_bins_.push_back({{bounds.left() + canonical.x() * bounds.width() / 100.0,
-				      bounds.top() + canonical.y() * bounds.width() / 100.0}});
-	}
-}
 void lol_dashboard_visuals::consume(const std::vector<input_data::trace_event> &events,
 				    const input_data::button_map<uint16_t> &keyboard,
 				    const input_data::button_map<uint16_t> &)
@@ -167,6 +141,13 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 	} else if (event.type == EVENT_MOUSE_PRESSED) {
 		++current_[1];
 		++total_clicks_;
+		if (game_frame_.contains(event.x, event.y)) {
+			const QPointF point(double(event.x - game_frame_.left()) / std::max(1, game_frame_.width()),
+					    double(event.y - game_frame_.top()) / std::max(1, game_frame_.height()));
+			trail_.push_back({point, event.code});
+			if (trail_.size() > 20)
+				trail_.pop_front();
+		}
 	}
 	if (event.type != EVENT_MOUSE_MOVED && event.type != EVENT_MOUSE_DRAGGED)
 		return;
@@ -174,7 +155,6 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 		current_[0] += std::hypot(event.x - last_motion_->x, event.y - last_motion_->y);
 	if (!game_frame_.contains(QPoint(event.x, event.y))) {
 		last_motion_ = event;
-		last_heat_point_.reset();
 		last_distance_.reset();
 		return;
 	}
@@ -182,27 +162,9 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 	if (last_distance_)
 		distance_ += std::hypot(relative.x() - last_distance_->x(), relative.y() - last_distance_->y());
 	last_distance_ = relative;
-	const QPointF point(
-		heatmap_bounds_.left() + relative.x() * heatmap_bounds_.width() / std::max(1, game_frame_.width()),
-		heatmap_bounds_.top() + relative.y() * heatmap_bounds_.height() / std::max(1, game_frame_.height()));
-	if (last_motion_ && last_heat_point_ && event.time_ns > last_motion_->time_ns && !hex_bins_.empty())
-		hex_bins_[nearest_hex(*last_heat_point_)].value +=
-			std::min(event.time_ns - last_motion_->time_ns, max_heatmap_gap_ns);
+	pointer_ = {double(relative.x()) / std::max(1, game_frame_.width()),
+		    double(relative.y()) / std::max(1, game_frame_.height())};
 	last_motion_ = event;
-	last_heat_point_ = point;
-}
-size_t lol_dashboard_visuals::nearest_hex(const QPointF &point) const
-{
-	size_t result{};
-	qreal best = std::numeric_limits<qreal>::max();
-	for (size_t index = 0; index < hex_bins_.size(); ++index) {
-		const qreal dx = point.x() - hex_bins_[index].center.x(), dy = point.y() - hex_bins_[index].center.y();
-		if (dx * dx + dy * dy < best) {
-			best = dx * dx + dy * dy;
-			result = index;
-		}
-	}
-	return result;
 }
 QString lol_dashboard_visuals::distance_label() const
 {
@@ -220,33 +182,27 @@ QString lol_dashboard_visuals::distance_label() const
 	}
 	return QString("%1 %2").arg(value, 0, 'f', decimals).arg(unit);
 }
-void lol_dashboard_visuals::draw_heatmap(QPainter &painter, const QRect &bounds) const
+void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds) const
 {
 	painter.setClipRect(bounds);
-	const qreal hex_radius = heatmap_.radius;
-	std::vector<uint64_t> values;
-	for (const auto &bin : hex_bins_)
-		if (bin.value)
-			values.push_back(bin.value);
-	std::sort(values.begin(), values.end());
-	const uint64_t q1 = values.empty() ? 0 : values[(values.size() - 1) / 4];
-	const uint64_t q2 = values.empty() ? 0 : values[(values.size() - 1) / 2];
-	const uint64_t q3 = values.empty() ? 0 : values[(values.size() - 1) * 3 / 4];
-	for (const auto &bin : hex_bins_) {
-		const int band = bin.value <= q1 ? 0 : bin.value <= q2 ? 1 : bin.value <= q3 ? 2 : 3;
-		QColor fill = bin.value ? lol_dashboard_heatmap_color(heatmap_, theme_, band) : QColor(Qt::black);
-		fill.setAlpha(bin.value ? 150 : 38);
-		painter.setBrush(fill);
+	for (size_t index = 0; index < trail_.size(); ++index) {
+		const auto &event = trail_[index];
+		QColor color = event.button == MOUSE_BUTTON1   ? QColor(239, 68, 68)
+			       : event.button == MOUSE_BUTTON2 ? QColor(59, 130, 246)
+							       : QColor(250, 204, 21);
+		color.setAlphaF(std::pow(0.95, trail_.size() - 1 - index));
+		painter.setBrush(color);
 		painter.setPen(Qt::NoPen);
-		if (bin.value)
-			painter.setPen(QPen(lol_dashboard_heatmap_color(heatmap_, theme_, band), 0.75));
-		QPolygonF hexagon;
-		for (int corner = 0; corner < 6; ++corner) {
-			const qreal angle = (30.0 + corner * 60.0) * M_PI / 180.0;
-			hexagon << QPointF(bin.center.x() + hex_radius * std::cos(angle),
-					   bin.center.y() + hex_radius * std::sin(angle));
-		}
-		painter.drawPolygon(hexagon);
+		painter.drawEllipse(QPointF(bounds.left() + event.point.x() * bounds.width(),
+					    bounds.top() + event.point.y() * bounds.height()),
+				    7, 7);
+	}
+	if (pointer_) {
+		painter.setBrush(Qt::white);
+		painter.setPen(QPen(Qt::black, 2));
+		painter.drawEllipse(QPointF(bounds.left() + pointer_->x() * bounds.width(),
+					    bounds.top() + pointer_->y() * bounds.height()),
+				    5, 5);
 	}
 }
 void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const
@@ -367,7 +323,7 @@ void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const Q
 	if (regions_.intensity)
 		draw_intensity(painter, header);
 	if (regions_.mouse_activity)
-		draw_heatmap(painter, lol_dashboard_heatmap_content_bounds(heatmap, game_frame_, style_));
+		draw_pointer(painter, lol_dashboard_heatmap_content_bounds(heatmap, game_frame_, style_));
 	painter.setClipping(false);
 	if (regions_.mouse_activity)
 		draw_summary(painter, summary, right_aligned);

@@ -8,7 +8,6 @@
 #include "sources/dashboard/rendering/lol_layout.hpp"
 #include "sources/dashboard/rendering/lol_visuals.hpp"
 #include "sources/game_report/presentation/lol_report_manager.hpp"
-#include "sources/heatmap/lol_settings.hpp"
 #include "sources/hud_layout/lol_layout.hpp"
 #include <QDir>
 #include <QFile>
@@ -144,11 +143,6 @@ public:
 		theme_ = {obs_color(uint32_t(obs_data_get_int(settings, "activity.inactive_color"))),
 			  obs_color(uint32_t(obs_data_get_int(settings, "activity.active_color"))),
 			  obs_color(uint32_t(obs_data_get_int(settings, "activity.background_color")))};
-		heatmap_ = {QString::fromUtf8(obs_data_get_string(settings, "lol_dashboard.heatmap_gradient")),
-			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_low"))),
-			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_middle"))),
-			    obs_color(uint32_t(obs_data_get_int(settings, "lol_dashboard.gradient_high"))),
-			    qreal(std::clamp(int(obs_data_get_int(settings, "lol_dashboard.hex_size")), 2, 100))};
 		style_ = {std::clamp(int(obs_data_get_int(settings, "lol_dashboard.section_padding")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_padding")), 0, 100),
 			  std::clamp(int(obs_data_get_int(settings, "lol_dashboard.element_x_gap")), 0, 100),
@@ -178,14 +172,14 @@ public:
 							 game_is_frontmost);
 		if (!layout_)
 			return;
-		report_.tick(frame_, lol_heatmap::radius_percent());
+		report_.tick(frame_, 0.0);
 		const auto panels = panel_rectangles();
 		if (camera_mode_visible_ && panels.camera_visible)
 			camera_visibility_.fit_to_panel(panels.camera_mask.left(), panels.camera_mask.top(),
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, heatmap_, regions_, window_, frame_, qrect(panels.heatmap), style_);
+		visuals_.configure(theme_, regions_, window_, frame_, qrect(panels.heatmap), style_);
 		if (!debug_mode_ && !game_is_frontmost) {
 			visuals_.clear_live_keys();
 			discard_backlog_ = true;
@@ -334,7 +328,6 @@ private:
 		minimap_cover_alpha_padding_percent_{};
 	QColor camera_background_color_{26, 26, 26, 255};
 	lol_dashboard_theme theme_;
-	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
 	lol_dashboard_style style_;
 	lol_dashboard_game_start_watcher game_start_watcher_;
