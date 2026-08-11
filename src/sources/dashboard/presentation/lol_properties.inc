@@ -20,8 +20,10 @@ bool auto_link_captures_clicked(obs_properties_t *, obs_property_t *, void *data
 }
 bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
-	obs_property_set_visible(obs_properties_get(props, "lol_dashboard.frame"),
-				 obs_data_get_bool(settings, "lol_dashboard.advanced_positioning"));
+	const bool visible = obs_data_get_bool(settings, "lol_dashboard.advanced_positioning");
+	for (const char *name :
+	     {"lol_dashboard.frame_left", "lol_dashboard.frame_top", "lol_dashboard.screen_resolution"})
+		obs_property_set_visible(obs_properties_get(props, name), visible);
 	return true;
 }
 bool auto_switch_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
@@ -207,21 +209,17 @@ obs_properties_t *properties(void *data)
 		obs_property_list_add_string(game_capture, name.c_str(), uuid.c_str());
 		obs_property_list_add_string(client_capture, name.c_str(), uuid.c_str());
 	}
-	auto *advanced = obs_properties_add_bool(capture_properties, "lol_dashboard.advanced_positioning",
-						 obs_module_text("LoLPerformanceDashboard.AdvancedPositioning"));
-	obs_property_set_modified_callback(advanced, advanced_positioning_changed);
-	obs_properties_add_bool(properties, "lol_dashboard.report.analysis_enabled",
-				obs_module_text("LoLGameReport.AnalysisEnabled"));
-	obs_properties_add_button2(properties, "lol_dashboard.reset",
-				   obs_module_text("LoLPerformanceDashboard.ResetStatistics"), reset_clicked, data);
-	obs_properties_add_bool(properties, "lol_dashboard.reset_at_game_start",
-				obs_module_text("LoLPerformanceDashboard.ResetAtGameStart"));
-	obs_properties_add_bool(properties, "lol_dashboard.always_visible",
-				obs_module_text("LoLPerformanceDashboard.DebugMode"));
-	auto *frame = obs_properties_add_group(properties, "lol_dashboard.frame",
+	auto *hands_diff = obs_properties_add_group(properties, "lol_dashboard.hands_diff",
+						    obs_module_text("LoLGameReport"), OBS_GROUP_NORMAL,
+						    obs_properties_create());
+	auto *hands_diff_properties = obs_property_group_content(hands_diff);
+	auto *frame = obs_properties_add_group(hands_diff_properties, "lol_dashboard.frame",
 					       obs_module_text("LoLPerformanceDashboard.GameFrame"), OBS_GROUP_NORMAL,
 					       obs_properties_create());
 	auto *frame_properties = obs_property_group_content(frame);
+	auto *advanced = obs_properties_add_bool(frame_properties, "lol_dashboard.advanced_positioning",
+						 obs_module_text("LoLPerformanceDashboard.UltrawideMonitor"));
+	obs_property_set_modified_callback(advanced, advanced_positioning_changed);
 	obs_properties_add_int(frame_properties, "lol_dashboard.frame_left",
 			       obs_module_text("LoLPerformanceDashboard.Left"), -32768, 32767, 1);
 	obs_properties_add_int(frame_properties, "lol_dashboard.frame_top",
@@ -231,6 +229,14 @@ obs_properties_t *properties(void *data)
 		obs_properties_add_text(frame_properties, "lol_dashboard.screen_resolution", resolution.constData(),
 					OBS_TEXT_INFO);
 	}
+	obs_properties_add_bool(hands_diff_properties, "lol_dashboard.report.analysis_enabled",
+				obs_module_text("LoLGameReport.AnalysisEnabled"));
+	obs_properties_add_button2(hands_diff_properties, "lol_dashboard.reset",
+				   obs_module_text("LoLPerformanceDashboard.ResetStatistics"), reset_clicked, data);
+	obs_properties_add_bool(hands_diff_properties, "lol_dashboard.reset_at_game_start",
+				obs_module_text("LoLPerformanceDashboard.ResetAtGameStart"));
+	obs_properties_add_bool(hands_diff_properties, "lol_dashboard.always_visible",
+				obs_module_text("LoLPerformanceDashboard.DebugMode"));
 	auto *hud = obs_properties_add_group(properties, "lol_dashboard.hud_settings",
 					     obs_module_text("LoLPerformanceDashboard.InputHud"), OBS_GROUP_NORMAL,
 					     obs_properties_create());
@@ -254,10 +260,18 @@ obs_properties_t *properties(void *data)
 		obs_property_set_modified_callback(enabled, hud_section_changed);
 		obs_property_set_modified_callback(count, hud_section_changed);
 		for (int index = 0; index < 4; ++index) {
+			const QByteArray widget_label =
+				QString::fromUtf8(obs_module_text("LoLPerformanceDashboard.WidgetN"))
+					.arg(index + 1)
+					.toUtf8();
+			const QByteArray metric_label =
+				QString::fromUtf8(obs_module_text("LoLPerformanceDashboard.MetricN"))
+					.arg(index + 1)
+					.toUtf8();
 			auto *slot = obs_properties_add_list(section_properties,
 							     (prefix + ".slot_" + std::to_string(index + 1)).c_str(),
-							     obs_module_text("LoLPerformanceDashboard.Widget"),
-							     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+							     widget_label.constData(), OBS_COMBO_TYPE_LIST,
+							     OBS_COMBO_FORMAT_INT);
 			obs_property_list_add_int(slot, obs_module_text("LoLPerformanceDashboard.Widget.None"), 0);
 			obs_property_set_modified_callback(slot, hud_section_changed);
 			if (horizontal) {
@@ -282,16 +296,14 @@ obs_properties_t *properties(void *data)
 			auto *intensity_metric = obs_properties_add_list(
 				section_properties,
 				(prefix + ".slot_" + std::to_string(index + 1) + ".intensity_metric").c_str(),
-				obs_module_text("LoLPerformanceDashboard.IntensityMetric"), OBS_COMBO_TYPE_LIST,
-				OBS_COMBO_FORMAT_INT);
+				metric_label.constData(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 			obs_property_list_add_int(intensity_metric,
 						  obs_module_text("LoLPerformanceDashboard.MouseVelocity"), 0);
 			obs_property_list_add_int(intensity_metric, obs_module_text("LoLPerformanceDashboard.APM"), 1);
 			auto *total_metric = obs_properties_add_list(
 				section_properties,
 				(prefix + ".slot_" + std::to_string(index + 1) + ".total_metric").c_str(),
-				obs_module_text("LoLPerformanceDashboard.TotalMetric"), OBS_COMBO_TYPE_LIST,
-				OBS_COMBO_FORMAT_INT);
+				metric_label.constData(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 			obs_property_list_add_int(total_metric, obs_module_text("MouseActivity.Clicks"), 0);
 			obs_property_list_add_int(total_metric, obs_module_text("LoLPerformanceDashboard.KeyPresses"),
 						  1);
@@ -323,10 +335,12 @@ obs_properties_t *properties(void *data)
 		minimap_cover_changed(cover_properties, nullptr, settings);
 		auto_switch_changed(capture_properties, nullptr, settings);
 		analysis_changed(properties, nullptr, settings);
-		obs_property_set_visible(obs_properties_get(properties, "lol_dashboard.report.online"),
-					 obs_data_get_bool(settings, "lol_dashboard.report.upload_enabled"));
 		obs_data_release(settings);
 	}
-	obs_property_set_visible(frame, data && static_cast<dashboard_source *>(data)->uses_advanced_positioning());
+	if (data) {
+		auto *settings = obs_source_get_settings(static_cast<dashboard_source *>(data)->source());
+		advanced_positioning_changed(frame_properties, nullptr, settings);
+		obs_data_release(settings);
+	}
 	return properties;
 }

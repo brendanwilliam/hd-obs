@@ -130,6 +130,11 @@ int main()
 	if (!require(smaller_camera_panels.camera_mask.width() == full_camera_panels.camera_mask.width() / 2) ||
 	    !require(smaller_camera_panels.camera_mask.height() == full_camera_panels.camera_mask.height() * 3 / 4))
 		return 1;
+	auto beside_minimap_camera = sources::lol_dashboard_panel_rectangles(min_model, {true, true, 16.0 / 9.0}, {});
+	if (!require(beside_minimap_camera.camera_mask.right() == default_panels.minimap_cover_mask.left() - 1) ||
+	    !require(beside_minimap_camera.camera_mask.left() >=
+		     int(std::lround(min_model.game.width * min_model.exclusions[0].right))))
+		return 1;
 	sources::lol_dashboard_image_layout minimap_cover{1.0, 50, 75, 150, 20, -10};
 	auto cover_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, minimap_cover);
 	auto centered_cover_panels = sources::lol_dashboard_panel_rectangles(min_model, {}, {1.0, 50, 75, 150, 0, 0});

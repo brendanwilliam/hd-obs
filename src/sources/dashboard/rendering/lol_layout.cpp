@@ -98,7 +98,11 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 	const league_safe_area::rect key{side_left, key_top, side_right, std::max(key_top, key_bottom)};
 	const league_safe_area::rect mouse = minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 							  : league_safe_area::rect{0.0, player.top, player.left, 1.0};
-	const lol_dashboard_rect camera_anchor_bounds = scaled(camera.next_to_minimap ? minimap : mouse, width, height);
+	const league_safe_area::rect beside_minimap =
+		minimap_left ? league_safe_area::rect{minimap.right, player.top, player.left, 1.0}
+			     : league_safe_area::rect{player.right, player.top, minimap.left, 1.0};
+	const lol_dashboard_rect camera_anchor_bounds =
+		scaled(camera.next_to_minimap ? beside_minimap : mouse, width, height);
 	const lol_dashboard_rect mouse_bounds =
 		scaled(mouse, width, height).adjusted(panel_gap, panel_gap, -panel_gap, -panel_gap);
 	const int heat_width = std::max(1, mouse_bounds.width() / 2);
@@ -138,7 +142,8 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 			camera_bounds.left(), camera_bounds.top(),
 			std::max(1, camera_bounds.width() * std::clamp(camera.width_percent, 0, 100) / 100),
 			std::max(1, camera_bounds.height() * std::clamp(camera.height_percent, 0, 200) / 100)};
-		result.camera_mask = anchored_lower_corner(camera_mask, camera_anchor_bounds, !minimap_left);
+		result.camera_mask = anchored_lower_corner(camera_mask, camera_anchor_bounds,
+							   camera.next_to_minimap ? minimap_left : !minimap_left);
 		result.camera =
 			cover(result.camera_mask, camera.aspect, std::clamp(camera.scale_percent, 1, 400) / 100.0);
 		result.camera.moveLeft(result.camera_mask.left() +

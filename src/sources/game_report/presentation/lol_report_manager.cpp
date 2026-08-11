@@ -137,9 +137,8 @@ void lol_report_manager::defaults(obs_data *settings)
 void lol_report_manager::add_properties(obs_properties *properties)
 {
 	auto *props = reinterpret_cast<obs_properties_t *>(properties);
-	auto *upload =
-		obs_properties_add_bool(props, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
 	auto *online = obs_properties_create();
+	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
 	obs_properties_add_text(online, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
 				OBS_TEXT_DEFAULT);
 	const QString status =
@@ -170,12 +169,6 @@ void lol_report_manager::add_properties(obs_properties *properties)
 	auto *online_group = obs_properties_add_group(props, "lol_dashboard.report.online",
 						      obs_module_text("LoLGameReport.Online"), OBS_GROUP_NORMAL,
 						      online);
-	obs_property_set_modified_callback(upload, [](obs_properties_t *all, obs_property_t *, obs_data_t *settings) {
-		obs_property_set_visible(obs_properties_get(all, "lol_dashboard.report.online"),
-					 obs_data_get_bool(settings, upload_enabled_key));
-		return true;
-	});
-	obs_property_set_visible(online_group,
-				 implementation_->online.linked() || implementation_->online.status().isEmpty());
+	Q_UNUSED(online_group);
 }
 } // namespace sources
