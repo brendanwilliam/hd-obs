@@ -17,7 +17,6 @@
 namespace sources {
 namespace {
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
-constexpr const char *online_service_url_key = "lol_dashboard.report.online_service_url";
 constexpr const char *upload_enabled_key = "lol_dashboard.report.upload_enabled";
 constexpr const char *analysis_enabled_key = "lol_dashboard.report.analysis_enabled";
 constexpr const char *game_config_key = "lol_dashboard.game_cfg";
@@ -68,7 +67,6 @@ public:
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		analysis_enabled = obs_data_get_bool(settings, analysis_enabled_key);
 		collector.set_enabled(analysis_enabled);
-		online->set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
 		online->set_upload_enabled(obs_data_get_bool(settings, upload_enabled_key));
 		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
 		const QString next_input_path = game_config.dir().filePath("input.ini");
@@ -174,15 +172,12 @@ void lol_report_manager::defaults(obs_data *settings)
 	obs_data_set_default_bool(value, development_logs_key, false);
 	obs_data_set_default_bool(value, analysis_enabled_key, false);
 	obs_data_set_default_bool(value, upload_enabled_key, true);
-	obs_data_set_default_string(value, online_service_url_key, ONLINE_REPORTS_SERVICE_URL);
 }
 void lol_report_manager::add_properties(obs_properties *properties)
 {
 	auto *props = reinterpret_cast<obs_properties_t *>(properties);
 	auto *online = obs_properties_create();
 	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
-	obs_properties_add_text(online, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
-				OBS_TEXT_DEFAULT);
 	const QString status =
 		QString("%1: %2").arg(obs_module_text("LoLGameReport.CollectorStatus"),
 				      lol_game_report::collector::state_text(implementation_->collector.state()));

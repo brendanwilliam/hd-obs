@@ -40,12 +40,16 @@ target_link_libraries(
 )
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src deps/libuiohook/include)
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
-set(
-  ONLINE_REPORTS_SERVICE_URL
-  "https://hands-diff.vercel.app"
-  CACHE STRING
-  "Base URL for the Hands Diff report service"
-)
+if(DEFINED ENV{WEBAPP_URL} AND NOT "$ENV{WEBAPP_URL}" STREQUAL "")
+  set(ONLINE_REPORTS_SERVICE_URL "$ENV{WEBAPP_URL}" CACHE STRING "Base URL for the Hands Diff report service" FORCE)
+else()
+  set(
+    ONLINE_REPORTS_SERVICE_URL
+    "https://hands-diff.vercel.app"
+    CACHE STRING
+    "Base URL for the Hands Diff report service"
+  )
+endif()
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ONLINE_REPORTS_SERVICE_URL="${ONLINE_REPORTS_SERVICE_URL}")
 target_compile_options(
   ${CMAKE_PROJECT_NAME}

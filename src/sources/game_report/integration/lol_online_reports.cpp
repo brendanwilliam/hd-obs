@@ -218,15 +218,6 @@ void online_reports::set_upload_enabled(bool enabled)
 		implementation_->state = "Connected. Uploads are enabled.";
 }
 
-void online_reports::set_service_url(const QString &value)
-{
-	if (implementation_->shutting_down)
-		return;
-	QUrl candidate(value.trimmed());
-	if (candidate.isValid() && !candidate.scheme().isEmpty() && !candidate.host().isEmpty())
-		implementation_->service_url = candidate;
-}
-
 void online_reports::tick()
 {
 	if (implementation_->shutting_down || !implementation_->upload_enabled || !linked() ||
