@@ -23,6 +23,8 @@ struct lol_dashboard_theme {
 	QColor background;
 };
 
+enum class lol_dashboard_alignment { left, center, right };
+
 struct lol_dashboard_regions {
 	enum class widget { none, intensity, mouse_activity, cumulative_totals, mouse_distance, live_keys, top_keys };
 	struct section {
@@ -86,7 +88,7 @@ public:
 	void clear_live_keys();
 	void reset();
 	void draw(QPainter &painter, const std::array<QRect, 4> &top, const std::array<QRect, 4> &left,
-		  const std::array<QRect, 4> &right, bool right_aligned) const;
+		  const std::array<QRect, 4> &right) const;
 
 private:
 	struct trail_event {
@@ -104,13 +106,14 @@ private:
 	void advance(uint64_t now);
 	void on_event(const input_data::trace_event &event);
 	void draw_pointer(QPainter &painter, const QRect &bounds) const;
-	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned, int metric) const;
-	void draw_mouse_distance(QPainter &painter, const QRect &bounds, bool right_aligned) const;
-	void draw_live_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
-	void draw_top_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
+	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment,
+				    int metric) const;
+	void draw_mouse_distance(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
+	void draw_live_keys(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
+	void draw_top_keys(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
 	void draw_intensity(QPainter &painter, const QRect &bounds, int metric) const;
 	void draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
-			 int intensity_metric, int total_metric, bool right_aligned) const;
+			 int intensity_metric, int total_metric, lol_dashboard_alignment alignment) const;
 	bool accepts_key(const QString &label) const;
 	QString distance_label() const;
 

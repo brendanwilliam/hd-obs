@@ -90,6 +90,8 @@ int main()
 	if (!require(!default_panels.camera_visible) || !require(edge_panels.header.top() == 0) ||
 	    !require(edge_panels.keys.right() == min_model.game.width - 1) ||
 	    !require(edge_panels.heatmap.left() == 0) || !require(edge_panels.summary.left() >= 0) ||
+	    !require(default_panels.heatmap.width() == default_panels.minimap_cover_mask.width()) ||
+	    !require(max_minimap_panels.heatmap.width() == max_minimap_panels.minimap_cover_mask.width()) ||
 	    !require(default_panels.heatmap.bottom() < min_model.game.height) ||
 	    !require(default_panels.minimap_cover_mask.right() == min_model.game.width - 1) ||
 	    !require(default_panels.minimap_cover_mask.bottom() == min_model.game.height - 1) ||
@@ -110,7 +112,7 @@ int main()
 	    !require(camera_panels.camera.height() >= camera_panels.camera_mask.height()) ||
 	    !require(camera_panels.heatmap.top() >= camera_panels.header.bottom()) ||
 	    !require(camera_panels.summary.left() == camera_panels.heatmap.left()) ||
-	    !require(camera_panels.right_aligned))
+	    !require(camera_panels.heatmap.width() == camera_panels.minimap_cover_mask.width()))
 		return 1;
 	const int summary_text_inset = 40;
 	const auto camera_heatmap_content = sources::lol_dashboard_aspect_fit_left(

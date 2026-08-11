@@ -218,7 +218,7 @@ public:
 					left_rects[index] = lol_dashboard_qrect(left[index]);
 					right_rects[index] = lol_dashboard_qrect(right[index]);
 				}
-				visuals_.draw(painter, top_rects, left_rects, right_rects, panels.right_aligned);
+				visuals_.draw(painter, top_rects, left_rects, right_rects);
 			}
 			if (show_minimap_cover_ && !minimap_cover_.isNull() && !panels.minimap_cover_mask.isEmpty()) {
 				painter.save();

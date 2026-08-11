@@ -60,7 +60,6 @@ struct lol_dashboard_image_layout {
 
 struct lol_dashboard_panels {
 	lol_dashboard_rect header, heatmap, summary, keys, camera_mask, camera, minimap_cover_mask, minimap_cover;
-	bool right_aligned{};
 	bool camera_visible{};
 };
 

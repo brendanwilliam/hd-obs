@@ -48,6 +48,19 @@ QString dashboard_text(const QString &text, const lol_dashboard_font_style &styl
 {
 	return style.all_caps ? text.toUpper() : text;
 }
+
+Qt::Alignment horizontal_alignment(lol_dashboard_alignment alignment)
+{
+	switch (alignment) {
+	case lol_dashboard_alignment::left:
+		return Qt::AlignLeft;
+	case lol_dashboard_alignment::center:
+		return Qt::AlignHCenter;
+	case lol_dashboard_alignment::right:
+		return Qt::AlignRight;
+	}
+	return Qt::AlignLeft;
+}
 } // namespace
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
@@ -250,29 +263,29 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 namespace {
 void draw_dashboard_value(QPainter &painter, const QRect &bounds, const sources::lol_dashboard_style &style,
 			  const sources::lol_dashboard_theme &theme, const QString &label, const QString &value,
-			  bool right_aligned)
+			  sources::lol_dashboard_alignment alignment)
 {
 	painter.setPen(Qt::white);
 	const QRect content = bounds.adjusted(style.section_padding + style.element_padding,
 					      style.section_padding + style.element_padding,
 					      -style.section_padding - style.element_padding,
 					      -style.section_padding - style.element_padding);
-	const Qt::Alignment alignment = (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+	const Qt::Alignment text_alignment = horizontal_alignment(alignment) | Qt::AlignVCenter;
 	painter.setFont(dashboard_font(style.number_labels, QFont::Bold));
 	lol_dashboard_draw_shadowed_text(painter,
 					 QRect(content.left(), content.top(), content.width(), content.height() / 2),
-					 alignment, dashboard_text(label, style.number_labels));
+					 text_alignment, dashboard_text(label, style.number_labels));
 	painter.setFont(dashboard_font(style.number_primary, QFont::Bold));
 	painter.setPen(theme.active);
 	lol_dashboard_draw_shadowed_text(painter,
 					 QRect(content.left(), content.top() + content.height() / 2, content.width(),
 					       content.height() / 2),
-					 alignment, dashboard_text(value, style.number_primary));
+					 text_alignment, dashboard_text(value, style.number_primary));
 }
 } // namespace
 
-void lol_dashboard_visuals::draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned,
-						   int metric) const
+void lol_dashboard_visuals::draw_cumulative_totals(QPainter &painter, const QRect &bounds,
+						   lol_dashboard_alignment alignment, int metric) const
 {
 	const std::array<QString, 3> labels{obs_module_text("MouseActivity.Clicks"),
 					    obs_module_text("LoLPerformanceDashboard.KeyPresses"),
@@ -280,13 +293,14 @@ void lol_dashboard_visuals::draw_cumulative_totals(QPainter &painter, const QRec
 	const std::array<QString, 3> values{QString::number(total_clicks_), QString::number(total_key_presses_),
 					    distance_label()};
 	metric = std::clamp(metric, 0, 2);
-	draw_dashboard_value(painter, bounds, style_, theme_, labels[metric], values[metric], right_aligned);
+	draw_dashboard_value(painter, bounds, style_, theme_, labels[metric], values[metric], alignment);
 }
 
-void lol_dashboard_visuals::draw_mouse_distance(QPainter &painter, const QRect &bounds, bool right_aligned) const
+void lol_dashboard_visuals::draw_mouse_distance(QPainter &painter, const QRect &bounds,
+						lol_dashboard_alignment alignment) const
 {
 	draw_dashboard_value(painter, bounds, style_, theme_, obs_module_text("MouseActivity.Distance"),
-			     distance_label(), right_aligned);
+			     distance_label(), alignment);
 }
 #include "sources/dashboard/rendering/lol_keys.inc"
 void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bounds, int metric) const
@@ -355,7 +369,7 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 }
 
 void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
-					int intensity_metric, int total_metric, bool right_aligned) const
+					int intensity_metric, int total_metric, lol_dashboard_alignment alignment) const
 {
 	if (bounds.isEmpty())
 		return;
@@ -368,16 +382,16 @@ void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions
 		painter.setClipping(false);
 		break;
 	case lol_dashboard_regions::widget::cumulative_totals:
-		draw_cumulative_totals(painter, bounds, right_aligned, total_metric);
+		draw_cumulative_totals(painter, bounds, alignment, total_metric);
 		break;
 	case lol_dashboard_regions::widget::mouse_distance:
-		draw_mouse_distance(painter, bounds, right_aligned);
+		draw_mouse_distance(painter, bounds, alignment);
 		break;
 	case lol_dashboard_regions::widget::live_keys:
-		draw_live_keys(painter, bounds, right_aligned);
+		draw_live_keys(painter, bounds, alignment);
 		break;
 	case lol_dashboard_regions::widget::top_keys:
-		draw_top_keys(painter, bounds, right_aligned);
+		draw_top_keys(painter, bounds, alignment);
 		break;
 	case lol_dashboard_regions::widget::none:
 		break;
@@ -385,20 +399,20 @@ void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions
 }
 
 void lol_dashboard_visuals::draw(QPainter &painter, const std::array<QRect, 4> &top, const std::array<QRect, 4> &left,
-				 const std::array<QRect, 4> &right, bool right_aligned) const
+				 const std::array<QRect, 4> &right) const
 {
 	ensure_dashboard_fonts_registered();
 	const auto draw_section = [&](const lol_dashboard_regions::section &section,
-				      const std::array<QRect, 4> &slot_rects) {
+				      const std::array<QRect, 4> &slot_rects, lol_dashboard_alignment alignment) {
 		if (!section.enabled)
 			return;
 		for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
 			draw_widget(painter, section.widgets[index], slot_rects[index],
-				    section.intensity_metrics[index], section.total_metrics[index], right_aligned);
+				    section.intensity_metrics[index], section.total_metrics[index], alignment);
 	};
-	draw_section(regions_.top, top);
-	draw_section(regions_.left, left);
-	draw_section(regions_.right, right);
+	draw_section(regions_.top, top, lol_dashboard_alignment::center);
+	draw_section(regions_.left, left, lol_dashboard_alignment::left);
+	draw_section(regions_.right, right, lol_dashboard_alignment::right);
 }
 
 } // namespace sources

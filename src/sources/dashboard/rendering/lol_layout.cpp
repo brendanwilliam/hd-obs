@@ -105,17 +105,18 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		scaled(camera.next_to_minimap ? beside_minimap : mouse, width, height);
 	const lol_dashboard_rect mouse_bounds =
 		scaled(mouse, width, height).adjusted(panel_gap, panel_gap, -panel_gap, -panel_gap);
-	const int heat_width = std::max(1, mouse_bounds.width() / 2);
-	const int heat_height = std::max(1, int(std::lround(heat_width / (double(width) / std::max(1, height)))));
 	const league_safe_area::rect header{top_left.right, 0.0, top_right.left, std::max(top_right.bottom, 0.12)};
 	const lol_dashboard_rect header_bounds = scaled(header, width, height).adjusted(panel_gap, 0, -panel_gap, 0);
 
 	lol_dashboard_panels result;
 	result.header = header_bounds;
 	result.keys = scaled(key, width, height).adjusted(panel_gap, panel_gap, -panel_gap, -panel_gap);
-	result.right_aligned = !minimap_left;
 
 	const lol_dashboard_rect cover_bounds = scaled(minimap, width, height);
+	// Keep the activity map visually paired with the minimap, regardless of
+	// the available side-HUD width or the player's HUD scale.
+	const int heat_width = std::max(1, cover_bounds.width());
+	const int heat_height = std::max(1, int(std::lround(heat_width / (double(width) / std::max(1, height)))));
 	const lol_dashboard_rect cover_mask{
 		cover_bounds.left(), cover_bounds.top(),
 		std::max(1, cover_bounds.width() * std::clamp(minimap_cover.width_percent, 1, 200) / 100),
@@ -159,7 +160,6 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 				  heat_height};
 		result.summary = {result.heatmap.left(), result.heatmap.bottom() + panel_gap + 1, heat_width,
 				  std::max(1, mouse_bounds.bottom() - result.heatmap.bottom() - panel_gap)};
-		result.right_aligned = !minimap_left;
 	} else {
 		const int heat_top = std::max(0, mouse_bounds.bottom() - heat_height + 1);
 		result.heatmap = {minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(), heat_top,
