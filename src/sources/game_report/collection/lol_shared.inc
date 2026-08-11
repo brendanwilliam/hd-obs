@@ -59,6 +59,11 @@ struct shared_collector {
 		QMetaObject::invokeMethod(
 			worker, [this, actions] { worker->set_gameplay_actions(actions); }, Qt::QueuedConnection);
 	}
+	void set_enabled(bool enabled)
+	{
+		QMetaObject::invokeMethod(
+			worker, [this, enabled] { worker->set_enabled(enabled); }, Qt::QueuedConnection);
+	}
 	QString champion()
 	{
 		std::lock_guard lock(champion_mutex);
@@ -141,6 +146,10 @@ void collector::set_game_frame(const QRect &frame)
 void collector::set_gameplay_actions(const QHash<QString, QString> &actions)
 {
 	shared().set_gameplay_actions(actions);
+}
+void collector::set_enabled(bool enabled)
+{
+	shared().set_enabled(enabled);
 }
 QString collector::active_champion() const
 {

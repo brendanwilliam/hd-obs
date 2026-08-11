@@ -78,6 +78,17 @@ public:
 		champion_callback_ = std::move(callback);
 	}
 	void set_gameplay_actions(const QHash<QString, QString> &actions) { gameplay_actions_ = actions; }
+	void set_enabled(bool enabled)
+	{
+		enabled_ = enabled;
+		if (!enabled_ && active_) {
+			active_ = false;
+			invalid_polls_ = 0;
+			metrics_.reset();
+			state_ = collection_state::empty;
+			diagnostics_.write("collector", "report_discarded", {{"reason", "analysis_disabled"}});
+		}
+	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
 		if (!active_)
@@ -124,6 +135,8 @@ private:
 	}
 	void process(const game_context &context)
 	{
+		if (!enabled_)
+			return;
 		if (!supported_game(context)) {
 			if (active_ && (context.game_end || ++invalid_polls_ >= 3))
 				finalize(context.game_end ? "game_end" : "invalid_game_state");
@@ -270,6 +283,7 @@ private:
 	int invalid_polls_{};
 	bool pending_{};
 	bool active_{};
+	bool enabled_{};
 	QString active_champion_;
 };
 

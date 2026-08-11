@@ -24,6 +24,7 @@ public:
 	void set_hex_radius_percent(double radius_percent);
 	void set_game_frame(const QRect &frame);
 	void set_gameplay_actions(const QHash<QString, QString> &actions);
+	void set_enabled(bool enabled);
 	QString active_champion() const;
 	void set_submission_callback(std::function<void(const report &)> callback);
 	void set_development_logs(bool enabled);
