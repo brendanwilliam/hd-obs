@@ -16,10 +16,13 @@
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QSaveFile>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
+
+#include <algorithm>
 
 namespace sources::lol_game_report {
 namespace {
@@ -82,23 +85,42 @@ online_reports::~online_reports()
 
 void online_reports::load_queue()
 {
+	const auto retained = implementation_->sessions ? implementation_->sessions->load()
+							: QVector<retained_session>{};
+	QSet<QString> retained_ids;
+	for (const auto &session : retained)
+		retained_ids.insert(session.value.id);
 	QFile file(implementation_->root + "/online-upload-queue.json");
-	if (!file.open(QIODevice::ReadOnly))
-		return;
-	const QJsonObject saved = QJsonDocument::fromJson(file.readAll()).object();
-	const QJsonArray entries = saved["queue"].toArray();
-	for (const auto entry : entries) {
-		const auto object = entry.toObject();
-		implementation_->queue.append({object["payload"].toObject(),
-					       QDateTime::fromString(object["retry_at"].toString(), Qt::ISODateWithMs),
-					       object["attempts"].toInt()});
+	if (file.open(QIODevice::ReadOnly)) {
+		const QJsonObject saved = QJsonDocument::fromJson(file.readAll()).object();
+		for (const auto entry : saved["queue"].toArray()) {
+			const auto object = entry.toObject();
+			if (retained_ids.contains(object["payload"].toObject()["report_id"].toString()))
+				implementation_->queue.append(
+					{object["payload"].toObject(),
+					 QDateTime::fromString(object["retry_at"].toString(), Qt::ISODateWithMs),
+					 object["attempts"].toInt()});
+		}
 	}
-	for (const auto entry : saved["uploaded"].toArray()) {
-		const QJsonObject value = entry.toObject();
-		const QString id = value["id"].toString(), hash = value["payload_hash"].toString();
-		if (!id.isEmpty() && !hash.isEmpty())
-			implementation_->uploaded_payloads.insert(id, hash);
+	for (const auto &session : retained) {
+		QJsonObject payload = to_json(session.value);
+		const QString hash = payload_hash(payload);
+		payload.insert("payload_hash", hash);
+		if (session.upload == upload_state::confirmed) {
+			implementation_->uploaded_payloads.insert(session.value.id, hash);
+			continue;
+		}
+		if (session.upload != upload_state::pending ||
+		    std::any_of(implementation_->queue.cbegin(), implementation_->queue.cend(),
+				[&session](const pending_report &entry) {
+					return entry.payload["report_id"].toString() == session.value.id;
+				}))
+			continue;
+		implementation_->queue.append(
+			{payload, session.retry_at.isValid() ? session.retry_at : QDateTime::currentDateTimeUtc(),
+			 session.attempts});
 	}
+	save_queue();
 }
 
 void online_reports::save_queue() const
@@ -327,8 +349,12 @@ void online_reports::unlink()
 void online_reports::retry()
 {
 	implementation_->auth_required = false;
-	for (auto &entry : implementation_->queue)
+	for (auto &entry : implementation_->queue) {
 		entry.retry_at = QDateTime::currentDateTimeUtc();
+		if (implementation_->sessions)
+			implementation_->sessions->update_upload(entry.payload["report_id"].toString(),
+								 upload_state::pending, entry.retry_at, entry.attempts);
+	}
 	save_queue();
 }
 
