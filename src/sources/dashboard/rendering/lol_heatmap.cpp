@@ -20,6 +20,7 @@ void lol_dashboard_visuals::reset()
 	pointer_.reset();
 	trail_.clear();
 	motion_trail_.clear();
+	pointer_indicators_.clear();
 	last_distance_.reset();
 	last_motion_.reset();
 	held_.clear();

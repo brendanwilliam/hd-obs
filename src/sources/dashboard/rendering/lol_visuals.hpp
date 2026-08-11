@@ -105,6 +105,12 @@ private:
 		QPointF point;
 		uint64_t time_ns{};
 	};
+	struct pointer_indicator {
+		uint16_t code{};
+		QString label;
+		uint64_t fade_started{};
+		uint64_t fade_until{};
+	};
 	struct active_key {
 		uint16_t code;
 		QString label;
@@ -114,6 +120,8 @@ private:
 	};
 	void advance(uint64_t now);
 	void on_event(const input_data::trace_event &event);
+	void activate_pointer_indicator(uint16_t code, const QString &label);
+	void release_pointer_indicator(uint16_t code, uint64_t now);
 	void draw_pointer(QPainter &painter, const QRect &bounds) const;
 	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment,
 				    int metric) const;
@@ -135,6 +143,7 @@ private:
 	std::optional<QPointF> pointer_;
 	std::deque<trail_event> trail_;
 	std::deque<motion_sample> motion_trail_;
+	std::vector<pointer_indicator> pointer_indicators_;
 	input_data::button_map<uint16_t> mouse_;
 	QHash<QString, QString> gameplay_actions_;
 	std::optional<QPoint> last_distance_;
