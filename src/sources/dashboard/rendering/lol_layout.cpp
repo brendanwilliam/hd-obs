@@ -71,7 +71,7 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_
 	const int usable = std::max(0, length - gap * (count - 1));
 	for (int index = 0; index < count; ++index) {
 		const int start = index * usable / count + index * gap;
-		const int end = (index + 1) * usable / count;
+		const int end = (index + 1) * usable / count + index * gap;
 		if (horizontal)
 			result[index] = {bounds.left() + start, bounds.top(), std::max(1, end - start),
 					 bounds.height()};
