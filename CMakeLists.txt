@@ -75,6 +75,8 @@ target_sources(
     src/sources/dashboard/capture/lol_capture_switcher.cpp
     src/sources/dashboard/detection/lol_game_config_watcher.hpp
     src/sources/dashboard/detection/lol_game_config_watcher.cpp
+    src/sources/dashboard/detection/lol_input_bindings.hpp
+    src/sources/dashboard/detection/lol_input_bindings.cpp
     src/sources/dashboard/detection/lol_game_start_watcher.hpp
     src/sources/dashboard/detection/lol_game_start_watcher.cpp
     src/sources/dashboard/rendering/lol_camera_render.inc
@@ -169,6 +171,15 @@ if(BUILD_TESTING)
   target_include_directories(lol-v2-metrics-test PRIVATE src)
   target_compile_features(lol-v2-metrics-test PRIVATE cxx_std_17)
   add_test(NAME lol-v2-metrics COMMAND lol-v2-metrics-test)
+  add_executable(
+    lol-input-bindings-test
+    tests/lol_input_bindings_test.cpp
+    src/sources/dashboard/detection/lol_input_bindings.cpp
+  )
+  target_link_libraries(lol-input-bindings-test PRIVATE Qt6::Core)
+  target_include_directories(lol-input-bindings-test PRIVATE src)
+  target_compile_features(lol-input-bindings-test PRIVATE cxx_std_17)
+  add_test(NAME lol-input-bindings COMMAND lol-input-bindings-test)
   if(APPLE)
     target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
@@ -176,5 +187,7 @@ if(BUILD_TESTING)
     set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-v2-metrics-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    target_link_options(lol-input-bindings-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(lol-input-bindings-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
   endif()
 endif()
