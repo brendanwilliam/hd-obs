@@ -101,6 +101,7 @@ struct lol_dashboard_game_start_watcher::implementation {
 		worker_ = new worker(starts);
 		worker_->moveToThread(&thread);
 		QObject::connect(&thread, &QThread::started, worker_, [this] { worker_->start(); });
+		QObject::connect(&thread, &QThread::finished, worker_, &QObject::deleteLater);
 		thread.start();
 	}
 	~implementation()
@@ -108,7 +109,7 @@ struct lol_dashboard_game_start_watcher::implementation {
 		QMetaObject::invokeMethod(worker_, [this] { worker_->stop(); }, Qt::BlockingQueuedConnection);
 		thread.quit();
 		thread.wait();
-		delete worker_;
+		worker_ = nullptr;
 	}
 };
 

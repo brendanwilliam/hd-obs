@@ -8,6 +8,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QPointer>
+#include <QThread>
+
+#include <memory>
+
 #include <obs-module.h>
 
 namespace sources {
@@ -21,9 +25,9 @@ constexpr const char *game_config_key = "lol_dashboard.game_cfg";
 
 class lol_report_manager::implementation {
 public:
-	implementation()
+	implementation() : online(std::make_unique<lol_game_report::online_reports>())
 	{
-		const QPointer<lol_game_report::online_reports> online_reports = &online;
+		const QPointer<lol_game_report::online_reports> online_reports = online.get();
 		collector.set_submission_callback([online_reports](const lol_game_report::report &report) {
 			if (!online_reports)
 				return;
@@ -39,16 +43,33 @@ public:
 	~implementation()
 	{
 		collector.set_submission_callback({});
+		dispose_online_reports();
 		if (owner == this)
 			owner = nullptr;
+	}
+	void dispose_online_reports()
+	{
+		auto *reports = online.release();
+		if (!reports)
+			return;
+		auto dispose = [reports] {
+			reports->shutdown();
+			reports->deleteLater();
+		};
+		if (reports->thread() == QThread::currentThread()) {
+			dispose();
+			return;
+		}
+		if (!QMetaObject::invokeMethod(reports, dispose, Qt::BlockingQueuedConnection))
+			blog(LOG_WARNING, "[input-activity] unable to dispose online reports on its Qt thread");
 	}
 	void update(obs_data_t *settings)
 	{
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		analysis_enabled = obs_data_get_bool(settings, analysis_enabled_key);
 		collector.set_enabled(analysis_enabled);
-		online.set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
-		online.set_upload_enabled(obs_data_get_bool(settings, upload_enabled_key));
+		online->set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
+		online->set_upload_enabled(obs_data_get_bool(settings, upload_enabled_key));
 		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
 		const QString next_input_path = game_config.dir().filePath("input.ini");
 		if (input_path != next_input_path)
@@ -84,7 +105,7 @@ public:
 		input_champion_ = champion;
 	}
 	lol_game_report::collector collector;
-	lol_game_report::online_reports online;
+	std::unique_ptr<lol_game_report::online_reports> online;
 	bool development_logs{};
 	bool analysis_enabled{};
 	QString input_path;
@@ -110,20 +131,41 @@ void lol_report_manager::tick(const QRect &game_frame)
 }
 bool lol_report_manager::link_online_reports()
 {
-	auto &online = implementation_->online;
-	QMetaObject::invokeMethod(&online, [&online] { online.begin_link(); }, Qt::QueuedConnection);
+	const QPointer<lol_game_report::online_reports> online = implementation_->online.get();
+	if (online)
+		QMetaObject::invokeMethod(
+			online,
+			[online] {
+				if (online)
+					online->begin_link();
+			},
+			Qt::QueuedConnection);
 	return true;
 }
 bool lol_report_manager::unlink_online_reports()
 {
-	auto &online = implementation_->online;
-	QMetaObject::invokeMethod(&online, [&online] { online.unlink(); }, Qt::QueuedConnection);
+	const QPointer<lol_game_report::online_reports> online = implementation_->online.get();
+	if (online)
+		QMetaObject::invokeMethod(
+			online,
+			[online] {
+				if (online)
+					online->unlink();
+			},
+			Qt::QueuedConnection);
 	return true;
 }
 bool lol_report_manager::retry_online_reports()
 {
-	auto &online = implementation_->online;
-	QMetaObject::invokeMethod(&online, [&online] { online.retry(); }, Qt::QueuedConnection);
+	const QPointer<lol_game_report::online_reports> online = implementation_->online.get();
+	if (online)
+		QMetaObject::invokeMethod(
+			online,
+			[online] {
+				if (online)
+					online->retry();
+			},
+			Qt::QueuedConnection);
 	return true;
 }
 void lol_report_manager::defaults(obs_data *settings)
@@ -145,7 +187,7 @@ void lol_report_manager::add_properties(obs_properties *properties)
 		QString("%1: %2").arg(obs_module_text("LoLGameReport.CollectorStatus"),
 				      lol_game_report::collector::state_text(implementation_->collector.state()));
 	obs_properties_add_text(online, "lol_dashboard.report.online_status",
-				QString("%1: %2").arg(status, implementation_->online.status()).toUtf8().constData(),
+				QString("%1: %2").arg(status, implementation_->online->status()).toUtf8().constData(),
 				OBS_TEXT_INFO);
 	obs_properties_add_bool(online, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
 	obs_properties_add_button2(

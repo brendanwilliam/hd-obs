@@ -68,7 +68,7 @@ public:
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
 	QTimer device_poll_timer, upload_timer;
-	bool auth_required{}, upload_in_flight{}, upload_enabled{true};
+	bool auth_required{}, upload_in_flight{}, upload_enabled{true}, shutting_down{};
 };
 
 online_reports::online_reports(QObject *parent) : QObject(parent), implementation_(new implementation(this))
@@ -81,6 +81,20 @@ online_reports::online_reports(QObject *parent) : QObject(parent), implementatio
 online_reports::~online_reports()
 {
 	delete implementation_;
+}
+
+void online_reports::shutdown()
+{
+	if (!implementation_ || implementation_->shutting_down)
+		return;
+	implementation_->shutting_down = true;
+	implementation_->device_poll_timer.stop();
+	implementation_->upload_timer.stop();
+	for (auto *reply : implementation_->network.findChildren<QNetworkReply *>()) {
+		QObject::disconnect(reply, nullptr, this, nullptr);
+		reply->abort();
+		reply->deleteLater();
+	}
 }
 
 void online_reports::load_queue()
@@ -168,7 +182,7 @@ void online_reports::clear_credential() const
 
 void online_reports::submit(const report &value)
 {
-	if (!implementation_->upload_enabled)
+	if (implementation_->shutting_down || !implementation_->upload_enabled)
 		return;
 	if (implementation_->sessions)
 		implementation_->sessions->save({value, upload_state::pending, QDateTime::currentDateTimeUtc(), 0});
@@ -195,6 +209,8 @@ void online_reports::submit(const report &value)
 
 void online_reports::set_upload_enabled(bool enabled)
 {
+	if (implementation_->shutting_down)
+		return;
 	implementation_->upload_enabled = enabled;
 	if (!enabled)
 		implementation_->state = "Uploads are disabled. Completed reports remain local only.";
@@ -204,6 +220,8 @@ void online_reports::set_upload_enabled(bool enabled)
 
 void online_reports::set_service_url(const QString &value)
 {
+	if (implementation_->shutting_down)
+		return;
 	QUrl candidate(value.trimmed());
 	if (candidate.isValid() && !candidate.scheme().isEmpty() && !candidate.host().isEmpty())
 		implementation_->service_url = candidate;
@@ -211,8 +229,8 @@ void online_reports::set_service_url(const QString &value)
 
 void online_reports::tick()
 {
-	if (!implementation_->upload_enabled || !linked() || implementation_->auth_required ||
-	    implementation_->upload_in_flight || implementation_->queue.isEmpty())
+	if (implementation_->shutting_down || !implementation_->upload_enabled || !linked() ||
+	    implementation_->auth_required || implementation_->upload_in_flight || implementation_->queue.isEmpty())
 		return;
 	auto &entry = implementation_->queue.first();
 	if (entry.retry_at > QDateTime::currentDateTimeUtc())
@@ -270,7 +288,7 @@ void online_reports::tick()
 
 void online_reports::begin_link()
 {
-	if (!implementation_->device_code.isEmpty())
+	if (implementation_->shutting_down || !implementation_->device_code.isEmpty())
 		return;
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/start")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -303,7 +321,7 @@ void online_reports::begin_link()
 
 void online_reports::poll_device_code()
 {
-	if (implementation_->device_code.isEmpty())
+	if (implementation_->shutting_down || implementation_->device_code.isEmpty())
 		return;
 	const QDateTime now = QDateTime::currentDateTimeUtc();
 	if (implementation_->device_code_expires_at.isValid() && implementation_->device_code_expires_at <= now) {
@@ -348,6 +366,8 @@ void online_reports::poll_device_code()
 
 void online_reports::unlink()
 {
+	if (implementation_->shutting_down)
+		return;
 	clear_credential();
 	implementation_->token.clear();
 	implementation_->device_code.clear();
@@ -359,6 +379,8 @@ void online_reports::unlink()
 
 void online_reports::retry()
 {
+	if (implementation_->shutting_down)
+		return;
 	implementation_->auth_required = false;
 	for (auto &entry : implementation_->queue) {
 		entry.retry_at = QDateTime::currentDateTimeUtc();
