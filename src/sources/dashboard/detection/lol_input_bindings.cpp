@@ -2,6 +2,8 @@
 
 #include <QRegularExpression>
 
+#include <algorithm>
+
 namespace sources {
 namespace {
 QString action_for(const QString &event)
@@ -18,12 +20,26 @@ QString action_for(const QString &event)
 						    {"evtOpenShop", "shop"}};
 	if (direct.contains(event))
 		return direct.value(event);
-	const QRegularExpression casts("^evt(SelfCast|NormalCast|SmartCast)(Spell|AvatarSpell)([1-4])$");
+	const QRegularExpression casts(
+		"^evt(SelfCast|NormalCast|SmartCast|SmartPlusSelfCast|SmartCastWithIndicator|"
+		"SmartPlusSelfCastWithIndicator)(Spell|AvatarSpell|Item[1-6]|VisionItem|RoleBound)([1-4])?$");
 	const auto cast = casts.match(event);
 	if (cast.hasMatch()) {
-		const QString prefix = cast.captured(1).toLower().replace("cast", "_cast_");
-		const QString family = cast.captured(2) == "Spell" ? "spell_" : "summoner_";
-		return prefix + family + cast.captured(3);
+		const QString kind = cast.captured(2);
+		QString action;
+		if (kind == "Spell")
+			action = "spell_" + cast.captured(3);
+		else if (kind == "AvatarSpell")
+			action = "summoner_" + cast.captured(3);
+		else if (kind.startsWith("Item"))
+			action = "item_" + kind.right(1);
+		else if (kind == "VisionItem")
+			action = "trinket";
+		else
+			action = "role_bound";
+		const QString prefix =
+			cast.captured(1).replace(QRegularExpression("([a-z])([A-Z])"), "\\1_\\2").toLower();
+		return prefix + "_" + action;
 	}
 	const QRegularExpression items("^evtUseItem([1-6])$");
 	const auto match = items.match(event);
@@ -37,6 +53,16 @@ QString normalize(QString value)
 	if (value.compare("Command", Qt::CaseInsensitive) == 0)
 		return "Cmd";
 	return value.left(1).toUpper() + value.mid(1).toLower();
+}
+
+QString canonical_chord(QStringList parts)
+{
+	if (parts.isEmpty())
+		return {};
+	const QString trigger = parts.takeLast();
+	std::sort(parts.begin(), parts.end());
+	parts.append(trigger);
+	return parts.join('+');
 }
 } // namespace
 
@@ -75,7 +101,9 @@ bool lol_input_bindings::parse(const QString &contents, const QString &champion)
 				parts.append(normalize(match.next().captured(1)));
 			if (parts.isEmpty() || parts.contains("<Unbound>", Qt::CaseInsensitive))
 				continue;
-			lol_binding binding{action, parts.join('+'), parts.takeLast(), parts, false};
+			const QString trigger = parts.takeLast();
+			lol_binding binding{action, canonical_chord(parts + QStringList{trigger}), trigger, parts,
+					    false};
 			const QString key = binding.chord;
 			if (by_chord_.contains(key))
 				by_chord_[key].ambiguous = true;
@@ -92,7 +120,7 @@ const lol_binding *lol_input_bindings::resolve(const QString &trigger, const QSt
 	for (const QString &modifier : modifiers)
 		parts.append(normalize(modifier));
 	parts.append(normalize(trigger));
-	const auto found = by_chord_.constFind(parts.join('+'));
+	const auto found = by_chord_.constFind(canonical_chord(parts));
 	return found == by_chord_.cend() || found->ambiguous ? nullptr : &found.value();
 }
 qsizetype lol_input_bindings::size() const
