@@ -104,6 +104,8 @@ target_sources(
     src/sources/game_report/collection/lol_shared.inc
     src/sources/game_report/data/lol_diagnostics.hpp
     src/sources/game_report/data/lol_diagnostics.cpp
+    src/sources/game_report/data/lol_session_store.hpp
+    src/sources/game_report/data/lol_session_store.cpp
     src/sources/game_report/data/lol_types.hpp
     src/sources/game_report/data/lol_types.cpp
     src/sources/game_report/integration/lol_online_reports.hpp
@@ -156,12 +158,24 @@ if(BUILD_TESTING)
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.cpp
     src/sources/game_report/data/lol_diagnostics.cpp
+    src/sources/game_report/data/lol_session_store.cpp
     src/sources/game_report/integration/lol_online_reports.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Widgets)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
+  add_executable(
+    lol-session-store-test
+    tests/lol_session_store_test.cpp
+    src/sources/game_report/data/lol_session_store.cpp
+    src/sources/game_report/data/lol_types.cpp
+    src/sources/game_report/collection/lol_hexbin.cpp
+  )
+  target_link_libraries(lol-session-store-test PRIVATE Qt6::Core Qt6::Gui)
+  target_include_directories(lol-session-store-test PRIVATE src)
+  target_compile_features(lol-session-store-test PRIVATE cxx_std_17)
+  add_test(NAME lol-session-store COMMAND lol-session-store-test)
   add_executable(
     lol-v2-metrics-test
     tests/lol_v2_metrics_test.cpp
@@ -183,9 +197,11 @@ if(BUILD_TESTING)
   if(APPLE)
     target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    target_link_options(lol-session-store-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-v2-metrics-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-session-store-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-v2-metrics-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     target_link_options(lol-input-bindings-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(lol-input-bindings-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")

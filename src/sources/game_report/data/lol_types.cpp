@@ -35,52 +35,69 @@ QJsonArray strings_json(const QStringList &values)
 
 QJsonObject to_json(const report &v)
 {
-	QString game_name = v.player, tag_line = "unknown";
+	QString game_name = v.riot_id_game_name, tag_line = v.riot_id_tag_line;
+	if (game_name.isEmpty())
+		game_name = v.player;
 	const qsizetype separator = game_name.lastIndexOf('#');
 	if (separator > 0) {
-		tag_line = game_name.mid(separator + 1);
+		if (tag_line.isEmpty())
+			tag_line = game_name.mid(separator + 1);
 		game_name.truncate(separator);
 	}
+	if (tag_line.isEmpty())
+		tag_line = "unknown";
 	QJsonArray intensity;
-	double peak_apm{}, peak_velocity{};
-	QVector<double> apm, velocity;
-	for (const auto &sample : v.input_samples) {
-		const double value = sample.actions * 20.0;
-		const double movement = sample.max_velocity_pixels_per_second;
-		intensity.append(QJsonObject{{"second", sample.seconds}, {"apm", value}, {"mouse_velocity", movement}});
-		apm.append(value);
-		velocity.append(movement);
-		peak_apm = std::max(peak_apm, value);
-		peak_velocity = std::max(peak_velocity, movement);
+	QVector<intensity_sample> samples = v.v2_intensity;
+	if (samples.isEmpty())
+		for (const auto &sample : v.input_samples)
+			samples.append({sample.seconds, sample.actions * 20.0, sample.max_velocity_pixels_per_second});
+	for (const auto &sample : samples)
+		intensity.append(QJsonObject{{"second", sample.second},
+					     {"apm", sample.apm},
+					     {"mouse_velocity", sample.mouse_velocity}});
+	metric_summary summary = v.v2_summary;
+	if (v.v2_intensity.isEmpty()) {
+		QVector<double> apm, velocity;
+		for (const auto &sample : samples) {
+			apm.append(sample.apm);
+			velocity.append(sample.mouse_velocity);
+			summary.peak_apm = std::max(summary.peak_apm, sample.apm);
+			summary.peak_mouse_velocity = std::max(summary.peak_mouse_velocity, sample.mouse_velocity);
+		}
+		auto median = [](QVector<double> values) {
+			if (values.isEmpty())
+				return 0.0;
+			std::sort(values.begin(), values.end());
+			const qsizetype middle = values.size() / 2;
+			return values.size() % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
+		};
+		summary.median_apm = median(apm);
+		summary.median_mouse_velocity = median(velocity);
 	}
-	auto median = [](QVector<double> values) {
-		if (values.isEmpty())
-			return 0.0;
-		std::sort(values.begin(), values.end());
-		const qsizetype middle = values.size() / 2;
-		return values.size() % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
-	};
+	const int duration_ms = v.duration_seconds > 0 ? v.duration_seconds * 1000
+						       : int(v.observed_started_at.msecsTo(v.completed_at));
+	const QDateTime started = v.observed_started_at.isValid() ? v.observed_started_at
+								  : v.completed_at.addMSecs(-duration_ms);
 	return {{"schema_version", 2},
 		{"report_id", v.id},
 		{"capture_policy_version", 1},
-		{"capture",
-		 QJsonObject{{"started_at_utc",
-			      v.completed_at.addSecs(-v.duration_seconds).toUTC().toString(Qt::ISODateWithMs)},
-			     {"duration_ms", v.duration_seconds * 1000},
-			     {"game_mode", "CLASSIC"},
-			     {"map_number", 11},
-			     {"riot_id", QJsonObject{{"game_name", game_name}, {"tag_line", tag_line}}},
-			     {"frontmost_capture", true},
-			     {"complete", v.duration_seconds > 0},
-			     {"event_detail_truncated", false}}},
-		{"input", QJsonObject{{"left_clicks", 0},
-				      {"right_clicks", 0},
-				      {"gameplay_key_actions", 0},
-				      {"intensity_by_second", intensity},
-				      {"summary", QJsonObject{{"peak_apm", peak_apm},
-							      {"median_apm", median(apm)},
-							      {"peak_mouse_velocity", peak_velocity},
-							      {"median_mouse_velocity", median(velocity)}}}}},
+		{"capture", QJsonObject{{"started_at_utc", started.toUTC().toString(Qt::ISODateWithMs)},
+					{"duration_ms", duration_ms},
+					{"game_mode", "CLASSIC"},
+					{"map_number", v.map_number},
+					{"riot_id", QJsonObject{{"game_name", game_name}, {"tag_line", tag_line}}},
+					{"frontmost_capture", v.frontmost_capture},
+					{"complete", v.complete || duration_ms > 0},
+					{"event_detail_truncated", v.event_detail_truncated}}},
+		{"input",
+		 QJsonObject{{"left_clicks", summary.left_clicks},
+			     {"right_clicks", summary.right_clicks},
+			     {"gameplay_key_actions", summary.gameplay_key_actions},
+			     {"intensity_by_second", intensity},
+			     {"summary", QJsonObject{{"peak_apm", summary.peak_apm},
+						     {"median_apm", summary.median_apm},
+						     {"peak_mouse_velocity", summary.peak_mouse_velocity},
+						     {"median_mouse_velocity", summary.median_mouse_velocity}}}}},
 		{"live_context", QJsonObject{{"changes", QJsonArray{}}}}};
 }
 
@@ -92,16 +109,30 @@ bool from_json(const QJsonObject &o, report &v)
 	v.id = o["report_id"].toString();
 	const QJsonObject capture = o["capture"].toObject();
 	const QJsonObject riot_id = capture["riot_id"].toObject();
-	v.player = riot_id["game_name"].toString() + "#" + riot_id["tag_line"].toString();
-	v.completed_at = QDateTime::fromString(capture["started_at_utc"].toString(), Qt::ISODateWithMs)
-				 .addMSecs(capture["duration_ms"].toInt());
+	v.riot_id_game_name = riot_id["game_name"].toString();
+	v.riot_id_tag_line = riot_id["tag_line"].toString();
+	v.player = v.riot_id_game_name + "#" + v.riot_id_tag_line;
+	v.observed_started_at = QDateTime::fromString(capture["started_at_utc"].toString(), Qt::ISODateWithMs);
+	v.completed_at = v.observed_started_at.addMSecs(capture["duration_ms"].toInt());
 	v.duration_seconds = capture["duration_ms"].toInt() / 1000;
 	v.game_mode = capture["game_mode"].toString();
+	v.map_number = capture["map_number"].toInt();
+	v.frontmost_capture = capture["frontmost_capture"].toBool();
+	v.complete = capture["complete"].toBool();
+	v.event_detail_truncated = capture["event_detail_truncated"].toBool();
 	for (const auto value : o["input"].toObject()["intensity_by_second"].toArray()) {
 		const QJsonObject sample = value.toObject();
-		v.input_samples.append({sample["second"].toInt(), int(sample["apm"].toDouble() / 20.0), 0,
-					sample["mouse_velocity"].toDouble()});
+		v.v2_intensity.append(
+			{sample["second"].toInt(), sample["apm"].toDouble(), sample["mouse_velocity"].toDouble()});
 	}
+	const QJsonObject summary = o["input"].toObject()["summary"].toObject();
+	v.v2_summary = {o["input"].toObject()["left_clicks"].toInt(),
+			o["input"].toObject()["right_clicks"].toInt(),
+			o["input"].toObject()["gameplay_key_actions"].toInt(),
+			summary["peak_apm"].toDouble(),
+			summary["median_apm"].toDouble(),
+			summary["peak_mouse_velocity"].toDouble(),
+			summary["median_mouse_velocity"].toDouble()};
 	return true;
 }
 

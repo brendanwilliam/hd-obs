@@ -1,11 +1,13 @@
 #pragma once
 
 #include <QDateTime>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 #include <QVector>
 
 #include "sources/game_report/collection/lol_hexbin.hpp"
+#include "sources/game_report/collection/lol_v2_metrics.hpp"
 
 namespace sources::lol_game_report {
 
@@ -59,7 +61,17 @@ struct chapter {
 struct report {
 	int schema_version{2};
 	QString id;
+	QDateTime observed_started_at;
 	QDateTime completed_at;
+	QString riot_id_game_name;
+	QString riot_id_tag_line;
+	int map_number{11};
+	bool frontmost_capture{true};
+	bool complete{};
+	bool event_detail_truncated{};
+	QVector<intensity_sample> v2_intensity;
+	metric_summary v2_summary;
+	QJsonArray local_gameplay_events;
 	QString player;
 	QString game_mode;
 	QString map;
