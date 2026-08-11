@@ -37,8 +37,6 @@ struct lol_dashboard_rect {
 struct lol_dashboard_camera_layout {
 	bool enabled{};
 	double aspect{1.0};
-	int width_percent{67};
-	int height_percent{100};
 	int scale_percent{100};
 	int translate_x_percent{};
 	int translate_y_percent{};

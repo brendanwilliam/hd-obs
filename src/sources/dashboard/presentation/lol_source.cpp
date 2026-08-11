@@ -88,8 +88,6 @@ public:
 						 camera_source_uuid_ != selected_camera_source;
 		camera_source_uuid_ = selected_camera_source;
 		camera_source_initialized_ = true;
-		camera_width_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_width_percent"));
-		camera_height_percent_ = int(obs_data_get_int(settings, "lol_dashboard.camera_height_percent"));
 		camera_scale_percent_ = camera_link_changed
 						? 100
 						: int(obs_data_get_int(settings, "lol_dashboard.camera_scale_percent"));
@@ -321,7 +319,7 @@ private:
 		auto_reset_at_game_start_{true};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
-	int camera_width_percent_{133}, camera_height_percent_{100}, camera_scale_percent_{100};
+	int camera_scale_percent_{100};
 	int camera_translate_x_percent_{}, camera_translate_y_percent_{}, minimap_cover_width_percent_{100},
 		minimap_cover_height_percent_{100}, minimap_cover_scale_percent_{100},
 		minimap_cover_translate_x_percent_{}, minimap_cover_translate_y_percent_{},

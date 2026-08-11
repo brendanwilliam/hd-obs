@@ -27,8 +27,7 @@ bool advanced_positioning_changed(obs_properties_t *props, obs_property_t *, obs
 bool camera_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const bool visible = obs_data_get_bool(settings, "lol_dashboard.show_camera");
-	for (const char *name : {"lol_dashboard.camera_source", "lol_dashboard.camera_width_percent",
-				 "lol_dashboard.camera_height_percent", "lol_dashboard.camera_scale_percent",
+	for (const char *name : {"lol_dashboard.camera_source", "lol_dashboard.camera_scale_percent",
 				 "lol_dashboard.camera_translate_x_percent", "lol_dashboard.camera_translate_y_percent",
 				 "lol_dashboard.camera_background_color"})
 		obs_property_set_visible(obs_properties_get(props, name), visible);
@@ -91,8 +90,6 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "lol_dashboard.show_mouse_activity", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_camera", false);
 	obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
-	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 133);
-	obs_data_set_default_int(settings, "lol_dashboard.camera_height_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_scale_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_x_percent", 0);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_translate_y_percent", 0);
@@ -207,10 +204,6 @@ obs_properties_t *properties(void *data)
 		camera_option_context context{static_cast<dashboard_source *>(data)->source(), camera_source};
 		obs_enum_sources(add_camera_source, &context);
 	}
-	obs_properties_add_int_slider(camera_properties, "lol_dashboard.camera_width_percent",
-				      obs_module_text("LoLPerformanceDashboard.WidthPercent"), 1, 200, 1);
-	obs_properties_add_int_slider(camera_properties, "lol_dashboard.camera_height_percent",
-				      obs_module_text("LoLPerformanceDashboard.HeightPercent"), 1, 200, 1);
 	obs_properties_add_int_slider(camera_properties, "lol_dashboard.camera_scale_percent",
 				      obs_module_text("LoLPerformanceDashboard.ScalePercent"), 1, 400, 1);
 	obs_properties_add_int_slider(camera_properties, "lol_dashboard.camera_translate_x_percent",
