@@ -95,9 +95,10 @@ void lol_dashboard_visuals::draw_top_keys(QPainter &painter, const QRect &bounds
 		dashboard_text(obs_module_text("LoLPerformanceDashboard.MostUsedKeys"), style_.number_labels));
 	const QRect chart(content.left(), chart_top + chart_title_height + style_.label_spacing, content.width(),
 			  std::max(1, content.bottom() - chart_top - chart_title_height - style_.label_spacing + 1));
+	constexpr int bar_vertical_spacing = 10;
 	const int row_height = std::max(1, chart.height() / 8);
 	for (int index = 0; index < int(keys.size()); ++index) {
-		const int y = chart.top() + index * row_height;
+		const int y = chart.top() + index * (row_height + bar_vertical_spacing);
 		const int text_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
 		const int within_element_gap = style_.within_element_gap;
 		const int bar = std::max(1, int(chart.width() * keys[index].count / max));

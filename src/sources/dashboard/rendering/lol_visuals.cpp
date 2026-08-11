@@ -100,10 +100,13 @@ bool lol_dashboard_visuals::accepts_key(const QString &label) const
 QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
 					   const lol_dashboard_style &style)
 {
-	Q_UNUSED(style);
 	if (bounds.isEmpty() || game_frame.width() < 1 || game_frame.height() < 1)
 		return {};
-	const auto fitted = lol_dashboard_aspect_fit({bounds.x(), bounds.y(), bounds.width(), bounds.height()},
+	const QRect content = bounds.adjusted(style.section_padding, style.section_padding, -style.section_padding,
+					      -style.section_padding);
+	if (content.width() < 1 || content.height() < 1)
+		return {};
+	const auto fitted = lol_dashboard_aspect_fit({content.x(), content.y(), content.width(), content.height()},
 						     double(game_frame.width()) / game_frame.height());
 	return {fitted.x(), fitted.y(), fitted.width(), fitted.height()};
 }
