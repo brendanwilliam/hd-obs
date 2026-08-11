@@ -8,7 +8,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QPointer>
-#include <QProcess>
 #include <obs-module.h>
 
 namespace sources {
@@ -109,11 +108,6 @@ void lol_report_manager::tick(const QRect &game_frame)
 {
 	implementation_->tick(game_frame);
 }
-bool lol_report_manager::reveal_development_log() const
-{
-	const QString path = implementation_->collector.development_log_path();
-	return !path.isEmpty() && QProcess::startDetached("open", {"-R", path});
-}
 bool lol_report_manager::link_online_reports()
 {
 	auto &online = implementation_->online;
@@ -143,36 +137,18 @@ void lol_report_manager::defaults(obs_data *settings)
 void lol_report_manager::add_properties(obs_properties *properties)
 {
 	auto *props = reinterpret_cast<obs_properties_t *>(properties);
-	auto *general = obs_properties_create();
+	auto *upload =
+		obs_properties_add_bool(props, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
+	auto *online = obs_properties_create();
+	obs_properties_add_text(online, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
+				OBS_TEXT_DEFAULT);
 	const QString status =
 		QString("%1: %2").arg(obs_module_text("LoLGameReport.CollectorStatus"),
 				      lol_game_report::collector::state_text(implementation_->collector.state()));
-	obs_properties_add_text(general, "lol_dashboard.report.collector_status", status.toUtf8().constData(),
-				OBS_TEXT_INFO);
-	obs_properties_add_bool(general, analysis_enabled_key, obs_module_text("LoLGameReport.AnalysisEnabled"));
-	obs_properties_add_bool(general, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
-	obs_properties_add_text(general, online_service_url_key, obs_module_text("LoLGameReport.OnlineServiceURL"),
-				OBS_TEXT_DEFAULT);
-	obs_properties_add_group(props, "lol_dashboard.report", obs_module_text("LoLGameReport.Report"),
-				 OBS_GROUP_NORMAL, general);
-	auto *actions = obs_properties_create();
-	obs_properties_add_button2(
-		actions, "lol_dashboard.report.reveal_log", obs_module_text("LoLGameReport.RevealDevelopmentLog"),
-		[](obs_properties_t *, obs_property_t *, void *data) {
-			return static_cast<lol_report_manager *>(data)->reveal_development_log();
-		},
-		this);
-	obs_properties_add_group(props, "lol_dashboard.report.actions", obs_module_text("Preferences.Actions"),
-				 OBS_GROUP_NORMAL, actions);
-	auto *online = obs_properties_create();
 	obs_properties_add_text(online, "lol_dashboard.report.online_status",
-				QString("%1: %2")
-					.arg(obs_module_text("LoLGameReport.OnlineStatus"),
-					     implementation_->online.status())
-					.toUtf8()
-					.constData(),
+				QString("%1: %2").arg(status, implementation_->online.status()).toUtf8().constData(),
 				OBS_TEXT_INFO);
-	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
+	obs_properties_add_bool(online, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
 	obs_properties_add_button2(
 		online, "lol_dashboard.report.online_link", obs_module_text("LoLGameReport.OnlineLink"),
 		[](obs_properties_t *, obs_property_t *, void *data) {
@@ -191,7 +167,15 @@ void lol_report_manager::add_properties(obs_properties *properties)
 			return static_cast<lol_report_manager *>(data)->retry_online_reports();
 		},
 		this);
-	obs_properties_add_group(props, "lol_dashboard.report.online", obs_module_text("LoLGameReport.Online"),
-				 OBS_GROUP_NORMAL, online);
+	auto *online_group = obs_properties_add_group(props, "lol_dashboard.report.online",
+						      obs_module_text("LoLGameReport.Online"), OBS_GROUP_NORMAL,
+						      online);
+	obs_property_set_modified_callback(upload, [](obs_properties_t *all, obs_property_t *, obs_data_t *settings) {
+		obs_property_set_visible(obs_properties_get(all, "lol_dashboard.report.online"),
+					 obs_data_get_bool(settings, upload_enabled_key));
+		return true;
+	});
+	obs_property_set_visible(online_group,
+				 implementation_->online.linked() || implementation_->online.status().isEmpty());
 }
 } // namespace sources

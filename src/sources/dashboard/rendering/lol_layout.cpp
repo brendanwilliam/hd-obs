@@ -98,7 +98,7 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 	const league_safe_area::rect key{side_left, key_top, side_right, std::max(key_top, key_bottom)};
 	const league_safe_area::rect mouse = minimap_left ? league_safe_area::rect{player.right, player.top, 1.0, 1.0}
 							  : league_safe_area::rect{0.0, player.top, player.left, 1.0};
-	const lol_dashboard_rect camera_anchor_bounds = scaled(mouse, width, height);
+	const lol_dashboard_rect camera_anchor_bounds = scaled(camera.next_to_minimap ? minimap : mouse, width, height);
 	const lol_dashboard_rect mouse_bounds =
 		scaled(mouse, width, height).adjusted(panel_gap, panel_gap, -panel_gap, -panel_gap);
 	const int heat_width = std::max(1, mouse_bounds.width() / 2);
@@ -131,14 +131,13 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		cover_bounds.width() * std::clamp(minimap_cover.translate_x_percent, -200, 200) / 100,
 		cover_bounds.height() * std::clamp(minimap_cover.translate_y_percent, -200, 200) / 100);
 
-	const lol_dashboard_rect camera_bounds{
-		camera_anchor_bounds.left(), camera_anchor_bounds.top(), camera_anchor_bounds.width(),
-		std::min(camera_anchor_bounds.height(), std::max(1, cover_bounds.height() * 2))};
+	const lol_dashboard_rect camera_bounds{camera_anchor_bounds.left(), camera_anchor_bounds.top(),
+					       camera_anchor_bounds.width(), cover_bounds.height()};
 	if (camera.enabled && camera.aspect > 0.0) {
 		const lol_dashboard_rect camera_mask{
 			camera_bounds.left(), camera_bounds.top(),
-			std::max(1, camera_bounds.width() * std::clamp(camera.width_percent, 1, 200) / 100),
-			std::max(1, camera_bounds.height() * std::clamp(camera.height_percent, 1, 200) / 100)};
+			std::max(1, camera_bounds.width() * std::clamp(camera.width_percent, 0, 100) / 100),
+			std::max(1, camera_bounds.height() * std::clamp(camera.height_percent, 0, 200) / 100)};
 		result.camera_mask = anchored_lower_corner(camera_mask, camera_anchor_bounds, !minimap_left);
 		result.camera =
 			cover(result.camera_mask, camera.aspect, std::clamp(camera.scale_percent, 1, 400) / 100.0);

@@ -19,6 +19,17 @@ lol_dashboard_regions::section section_from_settings(obs_data_t *settings, const
 	fallback.count = std::clamp(int(obs_data_get_int(settings, (prefix + ".count").c_str())), 1, 4);
 	for (int index = 0; index < fallback.count; ++index)
 		fallback.widgets[index] = widget_from_settings(settings, prefix + ".slot_" + std::to_string(index + 1));
+	for (int index = 0; index < fallback.count; ++index) {
+		fallback.intensity_metrics[index] = std::clamp(
+			int(obs_data_get_int(
+				settings,
+				(prefix + ".slot_" + std::to_string(index + 1) + ".intensity_metric").c_str())),
+			0, 1);
+		fallback.total_metrics[index] = std::clamp(
+			int(obs_data_get_int(
+				settings, (prefix + ".slot_" + std::to_string(index + 1) + ".total_metric").c_str())),
+			0, 2);
+	}
 	return fallback;
 }
 } // namespace

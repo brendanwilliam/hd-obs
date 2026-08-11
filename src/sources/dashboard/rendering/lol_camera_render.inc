@@ -21,8 +21,9 @@ lol_dashboard_panels dashboard_source::panel_rectangles() const
 	const auto aspect = camera_aspect();
 	return lol_dashboard_panel_rectangles(
 		*layout_,
-		{aspect.has_value(), aspect.value_or(1.0), camera_width_percent_, camera_height_percent_,
-		 camera_scale_percent_, camera_translate_x_percent_, camera_translate_y_percent_},
+		{aspect.has_value(), camera_next_to_minimap_, aspect.value_or(1.0), camera_width_percent_,
+		 camera_height_percent_, camera_scale_percent_, camera_translate_x_percent_,
+		 camera_translate_y_percent_},
 		{minimap_cover_.isNull() ? 1.0 : double(minimap_cover_.width()) / minimap_cover_.height(),
 		 minimap_cover_width_percent_, minimap_cover_height_percent_, minimap_cover_scale_percent_,
 		 minimap_cover_translate_x_percent_, minimap_cover_translate_y_percent_,

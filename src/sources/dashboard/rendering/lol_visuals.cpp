@@ -143,6 +143,7 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 		active_keys_.push_back(
 			{event.code, lol_dashboard_key_label(event.code), 0, 0, ++press_counts_[event.code]});
 		++current_[1];
+		++total_key_presses_;
 	} else if (event.type == EVENT_KEY_RELEASED) {
 		held_[event.code] = false;
 		for (auto &key : active_keys_)
@@ -270,10 +271,16 @@ void draw_dashboard_value(QPainter &painter, const QRect &bounds, const sources:
 }
 } // namespace
 
-void lol_dashboard_visuals::draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned) const
+void lol_dashboard_visuals::draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned,
+						   int metric) const
 {
-	draw_dashboard_value(painter, bounds, style_, theme_, obs_module_text("MouseActivity.Clicks"),
-			     QString::number(total_clicks_), right_aligned);
+	const std::array<QString, 3> labels{obs_module_text("MouseActivity.Clicks"),
+					    obs_module_text("LoLPerformanceDashboard.KeyPresses"),
+					    obs_module_text("MouseActivity.Distance")};
+	const std::array<QString, 3> values{QString::number(total_clicks_), QString::number(total_key_presses_),
+					    distance_label()};
+	metric = std::clamp(metric, 0, 2);
+	draw_dashboard_value(painter, bounds, style_, theme_, labels[metric], values[metric], right_aligned);
 }
 
 void lol_dashboard_visuals::draw_mouse_distance(QPainter &painter, const QRect &bounds, bool right_aligned) const
@@ -282,19 +289,17 @@ void lol_dashboard_visuals::draw_mouse_distance(QPainter &painter, const QRect &
 			     distance_label(), right_aligned);
 }
 #include "sources/dashboard/rendering/lol_keys.inc"
-void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bounds) const
+void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bounds, int metric) const
 {
 	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
-	const int intensity_padding = std::min(style_.intensity_padding, std::max(0, (section.width() - 2) / 3));
-	const int card_width = std::max(1, (section.width() - 3 * intensity_padding) / 2);
-	for (int metric = 0; metric < 2; ++metric) {
-		const QRect card(section.left() + intensity_padding + metric * (card_width + intensity_padding),
-				 section.top(), card_width, section.height());
+	metric = std::clamp(metric, 0, 1);
+	{
+		const QRect card = section;
 		const QRect content = card.adjusted(style_.element_padding, style_.element_padding,
 						    -style_.element_padding, -style_.element_padding);
 		if (content.width() < 1 || content.height() < 1)
-			continue;
+			return;
 		const int number_label_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
 		const int label_height = QFontMetrics(dashboard_font(style_.number_labels, QFont::Bold)).height() + 2;
 		const int number_height = QFontMetrics(dashboard_font(style_.number_primary, QFont::Bold)).height() + 2;
@@ -350,20 +355,20 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 }
 
 void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
-					bool right_aligned) const
+					int intensity_metric, int total_metric, bool right_aligned) const
 {
 	if (bounds.isEmpty())
 		return;
 	switch (widget) {
 	case lol_dashboard_regions::widget::intensity:
-		draw_intensity(painter, bounds);
+		draw_intensity(painter, bounds, intensity_metric);
 		break;
 	case lol_dashboard_regions::widget::mouse_activity:
 		draw_pointer(painter, lol_dashboard_heatmap_content_bounds(bounds, game_frame_, style_));
 		painter.setClipping(false);
 		break;
 	case lol_dashboard_regions::widget::cumulative_totals:
-		draw_cumulative_totals(painter, bounds, right_aligned);
+		draw_cumulative_totals(painter, bounds, right_aligned, total_metric);
 		break;
 	case lol_dashboard_regions::widget::mouse_distance:
 		draw_mouse_distance(painter, bounds, right_aligned);
@@ -388,7 +393,8 @@ void lol_dashboard_visuals::draw(QPainter &painter, const std::array<QRect, 4> &
 		if (!section.enabled)
 			return;
 		for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
-			draw_widget(painter, section.widgets[index], slot_rects[index], right_aligned);
+			draw_widget(painter, section.widgets[index], slot_rects[index],
+				    section.intensity_metrics[index], section.total_metrics[index], right_aligned);
 	};
 	draw_section(regions_.top, top);
 	draw_section(regions_.left, left);

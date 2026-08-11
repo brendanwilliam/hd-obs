@@ -29,6 +29,8 @@ struct lol_dashboard_regions {
 		bool enabled{};
 		int count{};
 		std::array<widget, 4> widgets{};
+		std::array<int, 4> intensity_metrics{};
+		std::array<int, 4> total_metrics{};
 	};
 	section top{true, 2, {widget::intensity, widget::intensity}};
 	section left{true, 3, {widget::mouse_activity, widget::cumulative_totals, widget::mouse_distance}};
@@ -102,13 +104,13 @@ private:
 	void advance(uint64_t now);
 	void on_event(const input_data::trace_event &event);
 	void draw_pointer(QPainter &painter, const QRect &bounds) const;
-	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned) const;
+	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned, int metric) const;
 	void draw_mouse_distance(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_live_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_top_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
-	void draw_intensity(QPainter &painter, const QRect &bounds) const;
+	void draw_intensity(QPainter &painter, const QRect &bounds, int metric) const;
 	void draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
-			 bool right_aligned) const;
+			 int intensity_metric, int total_metric, bool right_aligned) const;
 	bool accepts_key(const QString &label) const;
 	QString distance_label() const;
 
@@ -128,7 +130,7 @@ private:
 	std::deque<std::array<double, 2>> samples_;
 	std::vector<std::array<double, 2>> session_samples_;
 	std::array<double, 2> current_{};
-	uint64_t bucket_start_{}, total_clicks_{};
+	uint64_t bucket_start_{}, total_clicks_{}, total_key_presses_{};
 	double distance_{};
 	int window_{60};
 };

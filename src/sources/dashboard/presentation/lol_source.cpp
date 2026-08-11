@@ -69,6 +69,7 @@ public:
 		game_capture_source_ = obs_data_get_string(settings, league_capture_switcher::game_source_key);
 		client_capture_source_ = obs_data_get_string(settings, league_capture_switcher::client_source_key);
 		show_camera_ = obs_data_get_bool(settings, "lol_dashboard.show_camera");
+		camera_next_to_minimap_ = obs_data_get_bool(settings, "lol_dashboard.camera_next_to_minimap");
 		const std::string selected_camera_source = obs_data_get_string(settings, "lol_dashboard.camera_source");
 		const bool camera_link_changed = camera_source_initialized_ &&
 						 camera_source_uuid_ != selected_camera_source;
@@ -330,8 +331,9 @@ private:
 	QString path_;
 	QRect frame_{0, 0, 1920, 1080};
 	bool advanced_positioning_{}, debug_mode_{}, game_visible_{}, camera_mode_visible_{}, show_camera_{},
-		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_source_initialized_{},
-		auto_reset_at_game_start_{true}, auto_switch_captures_{true}, analysis_enabled_{};
+		show_minimap_cover_{true}, use_custom_minimap_cover_{}, camera_next_to_minimap_{},
+		camera_source_initialized_{}, auto_reset_at_game_start_{true}, auto_switch_captures_{true},
+		analysis_enabled_{};
 	std::string game_capture_source_, client_capture_source_;
 	std::string camera_source_uuid_;
 	int camera_width_percent_{100}, camera_height_percent_{100}, camera_scale_percent_{100};

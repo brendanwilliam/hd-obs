@@ -12,6 +12,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "lol_dashboard.show_mouse_activity", true);
 	obs_data_set_default_bool(settings, "lol_dashboard.show_camera", true);
 	obs_data_set_default_string(settings, "lol_dashboard.camera_source", "");
+	obs_data_set_default_bool(settings, "lol_dashboard.camera_next_to_minimap", false);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_width_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_height_percent", 100);
 	obs_data_set_default_int(settings, "lol_dashboard.camera_scale_percent", 100);
@@ -48,6 +49,12 @@ void defaults(obs_data_t *settings)
 		for (int index = 0; index < 4; ++index)
 			obs_data_set_default_int(settings, (prefix + ".slot_" + std::to_string(index + 1)).c_str(),
 						 values[index]);
+		for (int index = 0; index < 4; ++index) {
+			obs_data_set_default_int(settings,
+						 (prefix + ".slot_" + std::to_string(index + 1) + ".intensity_metric").c_str(), 0);
+			obs_data_set_default_int(settings,
+						 (prefix + ".slot_" + std::to_string(index + 1) + ".total_metric").c_str(), 0);
+		}
 	}
 	obs_data_set_default_bool(settings, "lol_dashboard.trail.middle_clicks", false);
 	obs_data_set_default_bool(settings, "lol_dashboard.trail.key_markers", false);

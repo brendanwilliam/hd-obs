@@ -13,7 +13,6 @@ public:
 	lol_report_manager(const lol_report_manager &) = delete;
 	void update(obs_data *settings);
 	void tick(const QRect &game_frame);
-	bool reveal_development_log() const;
 	bool link_online_reports();
 	bool unlink_online_reports();
 	bool retry_online_reports();
