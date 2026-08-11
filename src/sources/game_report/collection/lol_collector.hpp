@@ -3,6 +3,7 @@
 #include "sources/game_report/data/lol_types.hpp"
 
 #include <QString>
+#include <QHash>
 #include <QJsonObject>
 #include <QRect>
 
@@ -18,10 +19,11 @@ public:
 	~collector();
 	collector(const collector &) = delete;
 	collection_state state() const;
-	void tick(int dpi, double hex_radius_percent);
-	void set_dpi(int dpi);
-	void set_hex_radius_percent(double radius_percent);
+	void tick();
 	void set_game_frame(const QRect &frame);
+	void set_gameplay_actions(const QHash<QString, QString> &actions);
+	void set_enabled(bool enabled);
+	QString active_champion() const;
 	void set_submission_callback(std::function<void(const report &)> callback);
 	void set_development_logs(bool enabled);
 	bool development_logs_enabled() const;

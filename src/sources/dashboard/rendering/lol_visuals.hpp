@@ -4,6 +4,7 @@
 #include "sources/dashboard/rendering/lol_layout.hpp"
 
 #include <QColor>
+#include <QHash>
 #include <QPointF>
 #include <QRect>
 #include <array>
@@ -23,18 +24,30 @@ struct lol_dashboard_theme {
 	QColor background;
 };
 
-struct lol_dashboard_heatmap {
-	QString gradient{"spectrum"};
-	QColor low{235, 99, 37};
-	QColor middle{250, 204, 21};
-	QColor high{239, 68, 68};
-	qreal radius{10.0};
-};
+enum class lol_dashboard_alignment { left, center, right };
 
 struct lol_dashboard_regions {
-	bool intensity{true};
-	bool keys{true};
-	bool mouse_activity{true};
+	enum class widget { none, intensity, mouse_activity, cumulative_totals, mouse_distance, live_keys, top_keys };
+	struct section {
+		bool enabled{};
+		int count{};
+		std::array<widget, 4> widgets{};
+		std::array<int, 4> intensity_metrics{};
+		std::array<int, 4> total_metrics{};
+	};
+	section top{true, 2, {widget::intensity, widget::intensity}};
+	section left{true, 3, {widget::mouse_activity, widget::cumulative_totals, widget::mouse_distance}};
+	section right{true, 2, {widget::live_keys, widget::top_keys}};
+};
+
+int lol_dashboard_widget_layout_weight(lol_dashboard_regions::widget widget, bool horizontal);
+
+struct lol_dashboard_trail_filter {
+	bool middle_clicks{};
+	bool key_markers{};
+	bool advanced{};
+	bool whitelist{};
+	std::vector<QString> keys;
 };
 
 struct lol_dashboard_font_style {
@@ -63,7 +76,8 @@ struct lol_dashboard_style {
 	lol_dashboard_font_style button_labels{"Inter", 22.0F, 700.0F, 100.0F, 0.0F, 30};
 };
 
-QColor lol_dashboard_heatmap_color(const lol_dashboard_heatmap &heatmap, const lol_dashboard_theme &theme, int band);
+int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, const lol_dashboard_style &style);
+
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
 QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
@@ -71,20 +85,33 @@ QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &gam
 
 class lol_dashboard_visuals {
 public:
-	void configure(const lol_dashboard_theme &theme, const lol_dashboard_heatmap &heatmap,
-		       const lol_dashboard_regions &regions, int rolling_window_seconds, const QRect &game_frame,
-		       const QRect &heatmap_bounds, const lol_dashboard_style &style);
+	void configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
+		       int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
+		       const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter);
+	void set_gameplay_actions(const QHash<QString, QString> &actions);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void clear_live_keys();
 	void reset();
-	void draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary, const QRect &keys,
-		  bool right_aligned) const;
+	void draw(QPainter &painter, const std::array<QRect, 4> &top, const std::array<QRect, 4> &left,
+		  const std::array<QRect, 4> &right) const;
 
 private:
-	struct hex_bin {
-		QPointF center;
-		uint64_t value{};
+	struct trail_event {
+		QPointF point;
+		uint64_t time_ns{};
+		uint16_t button{};
+		QString label;
+	};
+	struct motion_sample {
+		QPointF point;
+		uint64_t time_ns{};
+	};
+	struct pointer_indicator {
+		uint16_t code{};
+		QString label;
+		uint64_t fade_started{};
+		uint64_t fade_until{};
 	};
 	struct active_key {
 		uint16_t code;
@@ -94,31 +121,42 @@ private:
 		uint64_t count{};
 	};
 	void advance(uint64_t now);
-	void resize_heatmap(const QRect &bounds);
 	void on_event(const input_data::trace_event &event);
-	void draw_heatmap(QPainter &painter, const QRect &bounds) const;
-	void draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const;
-	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
-	void draw_intensity(QPainter &painter, const QRect &bounds) const;
+	void activate_pointer_indicator(uint16_t code, const QString &label);
+	void release_pointer_indicator(uint16_t code, uint64_t now);
+	void draw_pointer(QPainter &painter, const QRect &bounds) const;
+	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment,
+				    int metric) const;
+	void draw_mouse_distance(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
+	void draw_live_keys(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
+	void draw_top_keys(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
+	void draw_intensity(QPainter &painter, const QRect &bounds, int metric) const;
+	void draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
+			 int intensity_metric, int total_metric, lol_dashboard_alignment alignment) const;
+	bool accepts_key(const QString &label) const;
 	QString distance_label() const;
-	size_t nearest_hex(const QPointF &point) const;
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
-	lol_dashboard_heatmap heatmap_;
 	lol_dashboard_regions regions_;
+	lol_dashboard_trail_filter trail_filter_;
 	lol_dashboard_style style_;
-	QRect game_frame_{0, 0, 1920, 1080}, heatmap_bounds_;
-	std::vector<hex_bin> hex_bins_;
-	std::optional<QPointF> last_heat_point_;
+	QRect game_frame_{0, 0, 1920, 1080};
+	QRect pointer_bounds_;
+	std::optional<QPointF> pointer_;
+	std::deque<trail_event> trail_;
+	std::deque<motion_sample> motion_trail_;
+	std::vector<pointer_indicator> pointer_indicators_;
+	input_data::button_map<uint16_t> mouse_;
+	QHash<QString, QString> gameplay_actions_;
 	std::optional<QPoint> last_distance_;
 	std::optional<input_data::trace_event> last_motion_;
 	std::unordered_map<uint16_t, bool> held_;
 	std::unordered_map<uint16_t, uint64_t> press_counts_;
 	std::vector<active_key> active_keys_;
-	std::deque<std::array<double, 2>> samples_;
-	std::vector<std::array<double, 2>> session_samples_;
-	std::array<double, 2> current_{};
-	uint64_t bucket_start_{}, total_clicks_{};
+	std::deque<std::array<double, 4>> samples_;
+	std::vector<std::array<double, 4>> session_samples_;
+	std::array<double, 4> current_{};
+	uint64_t bucket_start_{}, total_clicks_{}, total_key_presses_{};
 	double distance_{};
 	int window_{60};
 };

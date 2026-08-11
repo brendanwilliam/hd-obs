@@ -1,8 +1,10 @@
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
+#include "sources/game_report/data/lol_session_store.hpp"
+
 #include <QCoreApplication>
-#include <QDesktopServices>
 #include <QCryptographicHash>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QHash>
@@ -14,10 +16,13 @@
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QSaveFile>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
+
+#include <algorithm>
 
 namespace sources::lol_game_report {
 namespace {
@@ -33,8 +38,9 @@ struct pending_report {
 	int attempts{};
 };
 
-QString payload_hash(const QJsonObject &value)
+QString payload_hash(QJsonObject value)
 {
+	value.remove("payload_hash");
 	return QString::fromLatin1(QCryptographicHash::hash(QJsonDocument(value).toJson(QJsonDocument::Compact),
 							    QCryptographicHash::Sha256)
 					   .toHex());
@@ -57,15 +63,17 @@ public:
 	QNetworkAccessManager network;
 	QVector<pending_report> queue;
 	QHash<QString, QString> uploaded_payloads;
+	std::unique_ptr<session_store> sessions;
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
 	QTimer device_poll_timer, upload_timer;
-	bool auth_required{}, upload_in_flight{};
+	bool auth_required{}, upload_in_flight{}, upload_enabled{true}, shutting_down{};
 };
 
 online_reports::online_reports(QObject *parent) : QObject(parent), implementation_(new implementation(this))
 {
+	implementation_->sessions = std::make_unique<session_store>(implementation_->root + "/sessions");
 	load_queue();
 	implementation_->token = credential();
 }
@@ -75,25 +83,58 @@ online_reports::~online_reports()
 	delete implementation_;
 }
 
+void online_reports::shutdown()
+{
+	if (!implementation_ || implementation_->shutting_down)
+		return;
+	implementation_->shutting_down = true;
+	implementation_->device_poll_timer.stop();
+	implementation_->upload_timer.stop();
+	for (auto *reply : implementation_->network.findChildren<QNetworkReply *>()) {
+		QObject::disconnect(reply, nullptr, this, nullptr);
+		reply->abort();
+		reply->deleteLater();
+	}
+}
+
 void online_reports::load_queue()
 {
+	const auto retained = implementation_->sessions ? implementation_->sessions->load()
+							: QVector<retained_session>{};
+	QSet<QString> retained_ids;
+	for (const auto &session : retained)
+		retained_ids.insert(session.value.id);
 	QFile file(implementation_->root + "/online-upload-queue.json");
-	if (!file.open(QIODevice::ReadOnly))
-		return;
-	const QJsonObject saved = QJsonDocument::fromJson(file.readAll()).object();
-	const QJsonArray entries = saved["queue"].toArray();
-	for (const auto entry : entries) {
-		const auto object = entry.toObject();
-		implementation_->queue.append({object["payload"].toObject(),
-					       QDateTime::fromString(object["retry_at"].toString(), Qt::ISODateWithMs),
-					       object["attempts"].toInt()});
+	if (file.open(QIODevice::ReadOnly)) {
+		const QJsonObject saved = QJsonDocument::fromJson(file.readAll()).object();
+		for (const auto entry : saved["queue"].toArray()) {
+			const auto object = entry.toObject();
+			if (retained_ids.contains(object["payload"].toObject()["report_id"].toString()))
+				implementation_->queue.append(
+					{object["payload"].toObject(),
+					 QDateTime::fromString(object["retry_at"].toString(), Qt::ISODateWithMs),
+					 object["attempts"].toInt()});
+		}
 	}
-	for (const auto entry : saved["uploaded"].toArray()) {
-		const QJsonObject value = entry.toObject();
-		const QString id = value["id"].toString(), hash = value["payload_hash"].toString();
-		if (!id.isEmpty() && !hash.isEmpty())
-			implementation_->uploaded_payloads.insert(id, hash);
+	for (const auto &session : retained) {
+		QJsonObject payload = to_json(session.value);
+		const QString hash = payload_hash(payload);
+		payload.insert("payload_hash", hash);
+		if (session.upload == upload_state::confirmed) {
+			implementation_->uploaded_payloads.insert(session.value.id, hash);
+			continue;
+		}
+		if (session.upload != upload_state::pending ||
+		    std::any_of(implementation_->queue.cbegin(), implementation_->queue.cend(),
+				[&session](const pending_report &entry) {
+					return entry.payload["report_id"].toString() == session.value.id;
+				}))
+			continue;
+		implementation_->queue.append(
+			{payload, session.retry_at.isValid() ? session.retry_at : QDateTime::currentDateTimeUtc(),
+			 session.attempts});
 	}
+	save_queue();
 }
 
 void online_reports::save_queue() const
@@ -141,13 +182,18 @@ void online_reports::clear_credential() const
 
 void online_reports::submit(const report &value)
 {
-	const QJsonObject payload = to_json(value);
+	if (implementation_->shutting_down || !implementation_->upload_enabled)
+		return;
+	if (implementation_->sessions)
+		implementation_->sessions->save({value, upload_state::pending, QDateTime::currentDateTimeUtc(), 0});
+	QJsonObject payload = to_json(value);
 	const QString hash = payload_hash(payload);
+	payload.insert("payload_hash", hash);
 	if (implementation_->uploaded_payloads.value(value.id) == hash)
 		return;
 	bool found{};
 	for (auto &entry : implementation_->queue) {
-		if (entry.payload["id"] == value.id) {
+		if (entry.payload["report_id"] == value.id) {
 			found = true;
 			if (payload_hash(entry.payload) != hash) {
 				entry.payload = payload;
@@ -161,17 +207,21 @@ void online_reports::submit(const report &value)
 	save_queue();
 }
 
-void online_reports::set_service_url(const QString &value)
+void online_reports::set_upload_enabled(bool enabled)
 {
-	QUrl candidate(value.trimmed());
-	if (candidate.isValid() && !candidate.scheme().isEmpty() && !candidate.host().isEmpty())
-		implementation_->service_url = candidate;
+	if (implementation_->shutting_down)
+		return;
+	implementation_->upload_enabled = enabled;
+	if (!enabled)
+		implementation_->state = "Uploads are disabled. Completed reports remain local only.";
+	else if (linked())
+		implementation_->state = "Connected. Uploads are enabled.";
 }
 
 void online_reports::tick()
 {
-	if (!linked() || implementation_->auth_required || implementation_->upload_in_flight ||
-	    implementation_->queue.isEmpty())
+	if (implementation_->shutting_down || !implementation_->upload_enabled || !linked() ||
+	    implementation_->auth_required || implementation_->upload_in_flight || implementation_->queue.isEmpty())
 		return;
 	auto &entry = implementation_->queue.first();
 	if (entry.retry_at > QDateTime::currentDateTimeUtc())
@@ -179,26 +229,35 @@ void online_reports::tick()
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/reports")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 	request.setRawHeader("Authorization", "Bearer " + credential().toUtf8());
-	request.setRawHeader("Idempotency-Key", entry.payload["id"].toString().toUtf8());
+	request.setRawHeader("Idempotency-Key", entry.payload["report_id"].toString().toUtf8());
 	implementation_->upload_in_flight = true;
 	auto *reply =
 		implementation_->network.post(request, QJsonDocument(entry.payload).toJson(QJsonDocument::Compact));
 	connect(reply, &QNetworkReply::finished, this, [this, reply] {
 		implementation_->upload_in_flight = false;
 		const int code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+		const QJsonObject result = QJsonDocument::fromJson(reply->readAll()).object();
+		const QString result_status = result["status"].toString();
 		if (!implementation_->queue.isEmpty() && reply->error() == QNetworkReply::NoError && code >= 200 &&
-		    code < 300) {
+		    code < 300 && (result_status == "accepted" || result_status == "duplicate")) {
 			const QJsonObject uploaded = implementation_->queue.first().payload;
-			const QJsonObject result = QJsonDocument::fromJson(reply->readAll()).object();
+			if (implementation_->sessions)
+				implementation_->sessions->update_upload(uploaded["report_id"].toString(),
+									 upload_state::confirmed, {},
+									 implementation_->queue.first().attempts);
 			implementation_->queue.removeFirst();
-			implementation_->uploaded_payloads.insert(uploaded["id"].toString(), payload_hash(uploaded));
+			implementation_->uploaded_payloads.insert(uploaded["report_id"].toString(),
+								  uploaded["payload_hash"].toString());
 			implementation_->state = implementation_->queue.isEmpty() ? "Connected. All reports uploaded."
 										  : "Connected. Uploading reports.";
-			QUrl report_url(result["url"].toString());
-			if (report_url.isRelative())
-				report_url = implementation_->service_url.resolved(report_url);
-			if (report_url.isValid() && !report_url.isEmpty())
-				QDesktopServices::openUrl(report_url);
+		} else if (!implementation_->queue.isEmpty() && result_status == "rejected") {
+			implementation_->state = "Upload rejected. Update Hands Diff before retrying this report.";
+			implementation_->queue.first().retry_at = QDateTime::currentDateTimeUtc().addYears(10);
+			if (implementation_->sessions)
+				implementation_->sessions->update_upload(
+					implementation_->queue.first().payload["report_id"].toString(),
+					upload_state::rejected, implementation_->queue.first().retry_at,
+					implementation_->queue.first().attempts);
 		} else if (code == 401 || code == 403) {
 			implementation_->auth_required = true;
 			implementation_->state =
@@ -207,6 +266,10 @@ void online_reports::tick()
 			auto &entry = implementation_->queue.first();
 			entry.attempts = qMin(entry.attempts + 1, 8);
 			entry.retry_at = QDateTime::currentDateTimeUtc().addSecs(1 << qMin(entry.attempts, 8));
+			if (implementation_->sessions)
+				implementation_->sessions->update_upload(entry.payload["report_id"].toString(),
+									 upload_state::pending, entry.retry_at,
+									 entry.attempts);
 			implementation_->state = "Upload delayed; it will retry automatically.";
 		}
 		save_queue();
@@ -216,7 +279,7 @@ void online_reports::tick()
 
 void online_reports::begin_link()
 {
-	if (!implementation_->device_code.isEmpty())
+	if (implementation_->shutting_down || !implementation_->device_code.isEmpty())
 		return;
 	QNetworkRequest request(implementation_->service_url.resolved(QUrl("/api/device/start")));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -249,7 +312,7 @@ void online_reports::begin_link()
 
 void online_reports::poll_device_code()
 {
-	if (implementation_->device_code.isEmpty())
+	if (implementation_->shutting_down || implementation_->device_code.isEmpty())
 		return;
 	const QDateTime now = QDateTime::currentDateTimeUtc();
 	if (implementation_->device_code_expires_at.isValid() && implementation_->device_code_expires_at <= now) {
@@ -294,6 +357,8 @@ void online_reports::poll_device_code()
 
 void online_reports::unlink()
 {
+	if (implementation_->shutting_down)
+		return;
 	clear_credential();
 	implementation_->token.clear();
 	implementation_->device_code.clear();
@@ -305,9 +370,15 @@ void online_reports::unlink()
 
 void online_reports::retry()
 {
+	if (implementation_->shutting_down)
+		return;
 	implementation_->auth_required = false;
-	for (auto &entry : implementation_->queue)
+	for (auto &entry : implementation_->queue) {
 		entry.retry_at = QDateTime::currentDateTimeUtc();
+		if (implementation_->sessions)
+			implementation_->sessions->update_upload(entry.payload["report_id"].toString(),
+								 upload_state::pending, entry.retry_at, entry.attempts);
+	}
 	save_queue();
 }
 

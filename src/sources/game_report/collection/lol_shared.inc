@@ -1,18 +1,25 @@
 struct shared_collector {
 	std::mutex mutex;
+	std::mutex champion_mutex;
 	int references{};
 	int development_log_references{};
 	std::atomic<collection_state> state{collection_state::empty};
 	QThread thread;
 	worker *worker{};
+	QString active_champion;
 	void acquire()
 	{
 		std::lock_guard lock(mutex);
 		if (references++ != 0)
 			return;
 		worker = new class worker(state);
+		worker->set_champion_callback([this](const QString &champion) {
+			std::lock_guard lock(champion_mutex);
+			active_champion = champion;
+		});
 		worker->moveToThread(&thread);
 		QObject::connect(&thread, &QThread::started, worker, [this] { worker->start(); });
+		QObject::connect(&thread, &QThread::finished, worker, &QObject::deleteLater);
 		thread.start();
 	}
 	void release()
@@ -25,24 +32,32 @@ struct shared_collector {
 		QMetaObject::invokeMethod(worker, [this] { worker->stop(); }, Qt::BlockingQueuedConnection);
 		thread.quit();
 		thread.wait();
-		delete worker;
 		worker = nullptr;
+		{
+			std::lock_guard champion_lock(champion_mutex);
+			active_champion.clear();
+		}
 		state = collection_state::empty;
-	}
-	void set_dpi(int dpi)
-	{
-		QMetaObject::invokeMethod(worker, [this, dpi] { worker->set_dpi(dpi); }, Qt::QueuedConnection);
-	}
-	void set_hex_radius_percent(double radius_percent)
-	{
-		QMetaObject::invokeMethod(
-			worker, [this, radius_percent] { worker->set_hex_radius_percent(radius_percent); },
-			Qt::QueuedConnection);
 	}
 	void set_game_frame(const QRect &frame)
 	{
 		QMetaObject::invokeMethod(
 			worker, [this, frame] { worker->set_game_frame(frame); }, Qt::QueuedConnection);
+	}
+	void set_gameplay_actions(const QHash<QString, QString> &actions)
+	{
+		QMetaObject::invokeMethod(
+			worker, [this, actions] { worker->set_gameplay_actions(actions); }, Qt::QueuedConnection);
+	}
+	void set_enabled(bool enabled)
+	{
+		QMetaObject::invokeMethod(
+			worker, [this, enabled] { worker->set_enabled(enabled); }, Qt::QueuedConnection);
+	}
+	QString champion()
+	{
+		std::lock_guard lock(champion_mutex);
+		return active_champion;
 	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
@@ -106,22 +121,24 @@ collection_state collector::state() const
 {
 	return shared().state.load();
 }
-void collector::set_dpi(int dpi)
-{
-	shared().set_dpi(dpi);
-}
-void collector::set_hex_radius_percent(double radius_percent)
-{
-	shared().set_hex_radius_percent(radius_percent);
-}
 void collector::set_game_frame(const QRect &frame)
 {
 	shared().set_game_frame(frame);
 }
-void collector::tick(int dpi, double hex_radius_percent)
+void collector::set_gameplay_actions(const QHash<QString, QString> &actions)
 {
-	set_dpi(dpi);
-	set_hex_radius_percent(hex_radius_percent);
+	shared().set_gameplay_actions(actions);
+}
+void collector::set_enabled(bool enabled)
+{
+	shared().set_enabled(enabled);
+}
+QString collector::active_champion() const
+{
+	return shared().champion();
+}
+void collector::tick()
+{
 	if (!uiohook::league_game_is_frontmost()) {
 		discard_backlog_ = true;
 		return;

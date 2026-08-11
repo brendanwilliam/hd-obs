@@ -40,12 +40,16 @@ target_link_libraries(
 )
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src deps/libuiohook/include)
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
-set(
-  ONLINE_REPORTS_SERVICE_URL
-  "https://hands-diff.vercel.app"
-  CACHE STRING
-  "Base URL for the Hands Diff report service"
-)
+if(DEFINED ENV{WEBAPP_URL} AND NOT "$ENV{WEBAPP_URL}" STREQUAL "")
+  set(ONLINE_REPORTS_SERVICE_URL "$ENV{WEBAPP_URL}" CACHE STRING "Base URL for the Hands Diff report service" FORCE)
+else()
+  set(
+    ONLINE_REPORTS_SERVICE_URL
+    "https://hands-diff.vercel.app"
+    CACHE STRING
+    "Base URL for the Hands Diff report service"
+  )
+endif()
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ONLINE_REPORTS_SERVICE_URL="${ONLINE_REPORTS_SERVICE_URL}")
 target_compile_options(
   ${CMAKE_PROJECT_NAME}
@@ -75,12 +79,18 @@ target_sources(
     src/sources/dashboard/capture/lol_capture_switcher.cpp
     src/sources/dashboard/detection/lol_game_config_watcher.hpp
     src/sources/dashboard/detection/lol_game_config_watcher.cpp
+    src/sources/dashboard/detection/lol_input_bindings.hpp
+    src/sources/dashboard/detection/lol_input_bindings.cpp
     src/sources/dashboard/detection/lol_game_start_watcher.hpp
     src/sources/dashboard/detection/lol_game_start_watcher.cpp
     src/sources/dashboard/rendering/lol_camera_render.inc
     src/sources/dashboard/rendering/lol_camera_visibility.hpp
     src/sources/dashboard/rendering/lol_camera_visibility.cpp
     src/sources/dashboard/presentation/lol_properties.inc
+    src/sources/dashboard/presentation/lol_defaults.inc
+    src/sources/dashboard/presentation/lol_dashboard_settings.hpp
+    src/sources/dashboard/presentation/lol_dashboard_settings.cpp
+    src/sources/dashboard/presentation/lol_dashboard_helpers.hpp
     src/sources/dashboard/rendering/lol_layout.hpp
     src/sources/dashboard/rendering/lol_layout.cpp
     src/sources/dashboard/presentation/lol_source.hpp
@@ -93,13 +103,17 @@ target_sources(
     src/sources/dashboard/rendering/lol_keys.inc
     src/sources/game_report/collection/lol_collector.hpp
     src/sources/game_report/collection/lol_collector.cpp
-    src/sources/game_report/collection/lol_hexbin.hpp
-    src/sources/game_report/collection/lol_hexbin.cpp
-    src/sources/game_report/collection/lol_input_telemetry.hpp
-    src/sources/game_report/collection/lol_input_telemetry.cpp
+    src/sources/game_report/collection/lol_game_context.hpp
+    src/sources/game_report/collection/lol_game_context.cpp
+    src/sources/game_report/collection/lol_gameplay_keys.hpp
+    src/sources/game_report/collection/lol_gameplay_keys.cpp
+    src/sources/game_report/collection/lol_v2_metrics.hpp
+    src/sources/game_report/collection/lol_v2_metrics.cpp
     src/sources/game_report/collection/lol_shared.inc
     src/sources/game_report/data/lol_diagnostics.hpp
     src/sources/game_report/data/lol_diagnostics.cpp
+    src/sources/game_report/data/lol_session_store.hpp
+    src/sources/game_report/data/lol_session_store.cpp
     src/sources/game_report/data/lol_types.hpp
     src/sources/game_report/data/lol_types.cpp
     src/sources/game_report/integration/lol_online_reports.hpp
@@ -149,19 +163,74 @@ if(BUILD_TESTING)
     tests/lol_game_report_test.cpp
     src/sources/heatmap/lol_geometry.cpp
     src/sources/game_report/data/lol_types.cpp
-    src/sources/game_report/collection/lol_hexbin.cpp
-    src/sources/game_report/collection/lol_input_telemetry.cpp
     src/sources/game_report/data/lol_diagnostics.cpp
+    src/sources/game_report/data/lol_session_store.cpp
     src/sources/game_report/integration/lol_online_reports.cpp
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Widgets)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
+  add_executable(
+    lol-session-store-test
+    tests/lol_session_store_test.cpp
+    src/sources/game_report/data/lol_session_store.cpp
+    src/sources/game_report/data/lol_types.cpp
+  )
+  target_link_libraries(lol-session-store-test PRIVATE Qt6::Core Qt6::Gui)
+  target_include_directories(lol-session-store-test PRIVATE src)
+  target_compile_features(lol-session-store-test PRIVATE cxx_std_17)
+  add_test(NAME lol-session-store COMMAND lol-session-store-test)
+  add_executable(
+    lol-game-context-test
+    tests/lol_game_context_test.cpp
+    src/sources/game_report/collection/lol_game_context.cpp
+  )
+  target_link_libraries(lol-game-context-test PRIVATE Qt6::Core)
+  target_include_directories(lol-game-context-test PRIVATE src)
+  target_compile_features(lol-game-context-test PRIVATE cxx_std_17)
+  add_test(NAME lol-game-context COMMAND lol-game-context-test)
+  add_executable(
+    lol-gameplay-keys-test
+    tests/lol_gameplay_keys_test.cpp
+    src/sources/game_report/collection/lol_gameplay_keys.cpp
+  )
+  target_link_libraries(lol-gameplay-keys-test PRIVATE Qt6::Core)
+  target_include_directories(lol-gameplay-keys-test PRIVATE src deps/libuiohook/include)
+  target_compile_features(lol-gameplay-keys-test PRIVATE cxx_std_17)
+  add_test(NAME lol-gameplay-keys COMMAND lol-gameplay-keys-test)
+  add_executable(
+    lol-v2-metrics-test
+    tests/lol_v2_metrics_test.cpp
+    src/sources/game_report/collection/lol_v2_metrics.cpp
+  )
+  target_link_libraries(lol-v2-metrics-test PRIVATE Qt6::Core)
+  target_include_directories(lol-v2-metrics-test PRIVATE src)
+  target_compile_features(lol-v2-metrics-test PRIVATE cxx_std_17)
+  add_test(NAME lol-v2-metrics COMMAND lol-v2-metrics-test)
+  add_executable(
+    lol-input-bindings-test
+    tests/lol_input_bindings_test.cpp
+    src/sources/dashboard/detection/lol_input_bindings.cpp
+  )
+  target_link_libraries(lol-input-bindings-test PRIVATE Qt6::Core)
+  target_include_directories(lol-input-bindings-test PRIVATE src)
+  target_compile_features(lol-input-bindings-test PRIVATE cxx_std_17)
+  add_test(NAME lol-input-bindings COMMAND lol-input-bindings-test)
   if(APPLE)
     target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    target_link_options(lol-session-store-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    target_link_options(lol-game-context-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    target_link_options(lol-gameplay-keys-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    target_link_options(lol-v2-metrics-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-session-store-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-game-context-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-gameplay-keys-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-v2-metrics-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    target_link_options(lol-input-bindings-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    set_target_properties(lol-input-bindings-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
   endif()
 endif()

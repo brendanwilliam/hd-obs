@@ -12,9 +12,10 @@ class online_reports final : public QObject {
 public:
 	explicit online_reports(QObject *parent = nullptr);
 	~online_reports() override;
+	void shutdown();
 	void submit(const report &value);
 	void tick();
-	void set_service_url(const QString &value);
+	void set_upload_enabled(bool enabled);
 	void begin_link();
 	void unlink();
 	void retry();

@@ -1,54 +1,51 @@
 #include "sources/game_report/collection/lol_collector.hpp"
 
-#include "sources/game_report/collection/lol_input_telemetry.hpp"
+#include "sources/game_report/collection/lol_game_context.hpp"
+#include "sources/game_report/collection/lol_gameplay_keys.hpp"
 #include "sources/game_report/data/lol_diagnostics.hpp"
 
 #include "hook/uiohook_helper.hpp"
 #include "input/input_broker.hpp"
 
 #include <QDateTime>
-#include <QElapsedTimer>
-#include <QHash>
-#include <QJsonArray>
 #include <QJsonDocument>
-#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPluginLoader>
 #include <QSslConfiguration>
-#include <QSslError>
 #include <QSslSocket>
 #include <QThread>
 #include <QTimer>
 #include <QUuid>
-#include <QSet>
-#include <QStringList>
+
 #include <atomic>
 #include <algorithm>
 #include <cmath>
 #include <memory>
 #include <mutex>
-#include <numeric>
-#include <vector>
 #include <obs-module.h>
 
 extern "C" {
 #include <util/bmem.h>
+#include <util/platform.h>
 }
 
 namespace sources::lol_game_report {
 namespace {
+constexpr uint64_t second_ns = 1000000000ULL;
+
 class worker final : public QObject {
 public:
 	explicit worker(std::atomic<collection_state> &state) : state_(state) {}
+
 	void start()
 	{
 		load_tls_backend();
 		manager_ = new QNetworkAccessManager(this);
 		timer_ = new QTimer(this);
 		QObject::connect(timer_, &QTimer::timeout, this, [this] { poll(); });
-		timer_->start(2000);
+		timer_->start(1000);
 		poll();
 	}
 	void stop()
@@ -57,17 +54,6 @@ public:
 			timer_->stop();
 		diagnostics_.write("collector", "worker_stopped");
 		diagnostics_.close_and_remove();
-	}
-	void set_dpi(int dpi)
-	{
-		if (active_)
-			return;
-		pending_dpi_ = std::clamp(dpi, 100, 32000);
-	}
-	void set_hex_radius_percent(double radius_percent)
-	{
-		if (!active_)
-			pending_hex_radius_percent_ = std::clamp(radius_percent, 0.1, 100.0);
 	}
 	void set_submission_callback(std::function<void(const report &)> callback)
 	{
@@ -83,33 +69,30 @@ public:
 	void set_game_frame(const QRect &frame)
 	{
 		if (!active_)
-			pending_game_frame_ = frame;
+			game_frame_ = frame;
+	}
+	void set_champion_callback(std::function<void(const QString &)> callback)
+	{
+		champion_callback_ = std::move(callback);
+	}
+	void set_gameplay_actions(const QHash<QString, QString> &actions) { gameplay_actions_ = actions; }
+	void set_enabled(bool enabled)
+	{
+		enabled_ = enabled;
+		if (!enabled_ && active_) {
+			active_ = false;
+			invalid_polls_ = 0;
+			metrics_.reset();
+			state_ = collection_state::empty;
+			diagnostics_.write("collector", "report_discarded", {{"reason", "analysis_disabled"}});
+		}
 	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
-		if (!active_ || events.empty())
+		if (!active_)
 			return;
-		const int seconds = last_game_seconds_;
-		int movement_count{};
 		for (const auto &event : events)
-			movement_count += event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED;
-		const double before_distance =
-			report_.input_samples.isEmpty()
-				? 0.0
-				: std::accumulate(report_.input_samples.cbegin(), report_.input_samples.cend(), 0.0,
-						  [](double total, const auto &sample) {
-							  return total + sample.mouse_distance_pixels;
-						  });
-		telemetry_.consume(events, seconds, report_.input_samples, report_.hexbins);
-		const double after_distance = std::accumulate(
-			report_.input_samples.cbegin(), report_.input_samples.cend(), 0.0,
-			[](double total, const auto &sample) { return total + sample.mouse_distance_pixels; });
-		diagnostics_.write("input", seconds <= 0 ? "input_accepted_zero_clock" : "input_accepted",
-				   {{"sample_seconds", seconds},
-				    {"action_count", int(events.size())},
-				    {"movement_count", movement_count},
-				    {"distance_pixels", after_distance - before_distance},
-				    {"clock_aligned", seconds > 0}});
+			consume_event(event);
 	}
 
 private:
@@ -122,226 +105,189 @@ private:
 		bfree(path);
 		tls_backend_->instance();
 	}
-	void get(const QString &path, std::function<void(const QJsonObject &)> done)
+	void poll()
 	{
-		auto elapsed = std::make_shared<QElapsedTimer>();
-		elapsed->start();
-		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/" + path));
+		if (pending_)
+			return;
+		pending_ = true;
+		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/allgamedata"));
 		request.setTransferTimeout(1200);
-		// This request URL is constructed solely from this module's fixed loopback endpoint and
-		// endpoint names. Riot's Live Client Data service uses a self-signed certificate there.
 		QSslConfiguration ssl = request.sslConfiguration();
 		ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
 		request.setSslConfiguration(ssl);
 		auto *reply = manager_->get(request);
 		reply->ignoreSslErrors();
-		QObject::connect(reply, &QNetworkReply::sslErrors, reply, [reply](const QList<QSslError> &) {
-			// Riot's self-signed local certificate is accepted only for this literal loopback request.
-			if (reply->url().host() == "127.0.0.1" && reply->url().port(2999) == 2999)
-				reply->ignoreSslErrors();
+		QObject::connect(reply, &QNetworkReply::finished, reply, [this, reply] {
+			pending_ = false;
+			const bool success = reply->error() == QNetworkReply::NoError;
+			const QJsonObject data = success ? QJsonDocument::fromJson(reply->readAll()).object()
+							 : QJsonObject{};
+			diagnostics_.write(
+				"collector", "endpoint_completed",
+				{{"endpoint", "allgamedata"},
+				 {"success", success},
+				 {"http_status", reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()}});
+			process(success ? parse_game_context(data) : game_context{});
+			reply->deleteLater();
 		});
-		QObject::connect(
-			reply, &QNetworkReply::finished, reply, [this, reply, path, elapsed, done = std::move(done)] {
-				const bool success = reply->error() == QNetworkReply::NoError;
-				const QByteArray body = reply->readAll();
-				const QJsonDocument document = success ? QJsonDocument::fromJson(body)
-								       : QJsonDocument{};
-				const QJsonObject object = document.object();
-				const QJsonObject playerlist =
-					document.isArray() ? QJsonObject{{"allPlayers", document.array()}} : object;
-				QJsonObject fields{{"endpoint", path},
-						   {"success", success},
-						   {"http_status",
-						    reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()},
-						   {"latency_ms", int(elapsed->elapsed())}};
-				if (success) {
-					if (path == "eventdata")
-						fields.insert("payload", sanitize_eventdata(object));
-					else if (path == "playerlist")
-						fields.insert("payload", summarize_playerlist(playerlist));
-					else if (path != "playerlist")
-						fields.insert("payload", object);
-				}
-				diagnostics_.write("collector", "endpoint_completed", fields);
-				done(object);
-				reply->deleteLater();
-			});
 	}
-	void poll()
+	void process(const game_context &context)
 	{
-		if (pending_)
+		if (!enabled_)
 			return;
-		diagnostics_.write("collector", "poll_started");
-		pending_ = 7;
-		batch_ = {};
-		for (const QString &endpoint : {"activeplayer", "activeplayerscores", "activeplayeritems",
-						"activeplayerrunes", "eventdata", "gamestats", "playerlist"})
-			get(endpoint, [this, endpoint](const QJsonObject &object) {
-				batch_[endpoint] = object;
-				if (--pending_ == 0)
-					process_batch();
-			});
-	}
-	void process_batch()
-	{
-		const QJsonObject name = batch_.value("activeplayer").toObject();
-		const QString riot_id = name.value("riotId").toString();
-		const QString game_name = name.value("riotIdGameName").toString();
-		const QString player = riot_id.isEmpty() ? game_name : riot_id;
-		if (player.isEmpty()) {
-			diagnostics_.write("collector", "missing_player",
-					   {{"active", active_}, {"misses", misses_ + 1}});
-			if (active_ && ++misses_ >= 3)
-				finalize("missing_player");
+		if (!supported_game(context)) {
+			if (active_ && (context.game_end || ++invalid_polls_ >= 3))
+				finalize(context.game_end ? "game_end" : "invalid_game_state");
 			return;
 		}
-		misses_ = 0;
+		if (context.champion != active_champion_) {
+			active_champion_ = context.champion;
+			if (champion_callback_)
+				champion_callback_(active_champion_);
+		}
+		invalid_polls_ = 0;
 		if (!active_) {
-			active_ = true;
-			report_ = {};
-			report_.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-			report_.player = player;
-			report_.champion = name.value("championName").toString();
-			report_.dpi = pending_dpi_;
-			report_.hex_geometry.radius_percent = pending_hex_radius_percent_;
-			report_.hex_geometry.frame_aspect_ratio =
-				double(pending_game_frame_.width()) / std::max(1, pending_game_frame_.height());
-			player_aliases_ = {riot_id, game_name, name.value("summonerName").toString()};
-			telemetry_.set_game_frame(pending_game_frame_);
-			telemetry_.set_hex_radius_percent(report_.hex_geometry.radius_percent);
-			telemetry_.reset();
-			state_ = collection_state::recording;
-			diagnostics_.write("collector", "report_started", {{"has_riot_id", !riot_id.isEmpty()}});
+			if (context.game_time > 1.0)
+				return;
+			begin(context);
 		}
-		const QJsonObject game = batch_.value("gamestats").toObject();
-		report_.game_mode = game.value("gameMode").toString();
-		report_.map = game.value("mapName").toString();
-		report_.duration_seconds = int(std::floor(game.value("gameTime").toDouble()));
-		last_game_seconds_ = report_.duration_seconds;
-		if (last_logged_game_seconds_ != last_game_seconds_) {
-			diagnostics_.write("collector", "game_clock_changed",
-					   {{"game_seconds", last_game_seconds_},
-					    {"clock_aligned", last_game_seconds_ > 0}});
-			last_logged_game_seconds_ = last_game_seconds_;
-		}
-		const QJsonObject scores = batch_.value("activeplayerscores").toObject();
-		stat_sample sample;
-		sample.seconds = int(std::floor(game.value("gameTime").toDouble()));
-		sample.kills = scores.value("kills").toInt();
-		sample.deaths = scores.value("deaths").toInt();
-		sample.assists = scores.value("assists").toInt();
-		sample.cs = scores.value("creepScore").toInt();
-		sample.ward_score = scores.value("wardScore").toInt();
-		sample.level = scores.value("level").toInt();
-		sample.gold = scores.value("currentGold").toInt();
-		report_.samples.append(sample);
-		report_.items.clear();
-		const auto items = batch_.value("activeplayeritems").toObject().value("items").toArray();
-		QStringList current_items;
-		for (const QJsonValue item : items)
-			current_items.append(item.toObject().value("displayName").toString());
-		for (const auto &item : current_items)
-			if (!last_items_.contains(item) && !item.isEmpty())
-				report_.item_events.append({item, 0, sample.seconds});
-		report_.items = current_items;
-		last_items_ = current_items;
-		const auto abilities = name.value("abilities").toObject();
-		for (const QString &slot : {"Q", "W", "E", "R"}) {
-			const auto ability = abilities.value(slot).toObject();
-			const int level = ability.value("abilityLevel").toInt();
-			if (level > ability_levels_.value(slot)) {
-				report_.abilities.append({slot, level, sample.seconds});
-				ability_levels_[slot] = level;
-			}
-		}
-		report_.runes.clear();
-		const auto runes = batch_.value("activeplayerrunes").toObject();
-		if (!runes.value("keystone").toObject().value("displayName").toString().isEmpty())
-			report_.runes.append(runes.value("keystone").toObject().value("displayName").toString());
-		const auto events = batch_.value("eventdata").toObject().value("Events").toArray();
-		for (const QJsonValue item : events) {
-			const auto event = item.toObject();
-			const QString id = event.value("EventID").toString();
-			if (id.isEmpty() || seen_.contains(id))
-				continue;
-			const QString type = event.value("EventName").toString();
-			const QString killer = event.value("KillerName").toString(),
-				      victim = event.value("VictimName").toString();
-			if (type != "GameEnd" && !is_local_player(killer) && !is_local_player(victim) &&
-			    classify_event(type) == "other")
-				continue;
-			seen_.insert(id);
-			report_.events.append(
-				{id, type, int(event.value("EventTime").toDouble()), type, classify_event(type)});
-			if (type == "GameEnd")
-				finalize("game_end_event");
-		}
-		diagnostics_.write("collector", "poll_completed",
-				   {{"sample_count", report_.samples.size()},
-				    {"event_count", report_.events.size()},
-				    {"game_seconds", report_.duration_seconds}});
+		last_game_seconds_ = context.game_time;
+		anchor_monotonic_ns_ = os_gettime_ns();
+		metrics_.evaluate_through(int(std::floor(context.game_time)));
+		if (context.game_end)
+			finalize("game_end");
 	}
-	bool is_local_player(const QString &name) const
+	void begin(const game_context &context)
 	{
-		return std::any_of(player_aliases_.cbegin(), player_aliases_.cend(), [&name](const QString &alias) {
-			return !alias.isEmpty() && alias.compare(name, Qt::CaseInsensitive) == 0;
-		});
+		report_ = {};
+		report_.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+		report_.observed_started_at = QDateTime::currentDateTimeUtc();
+		report_.riot_id_game_name = context.riot_id_game_name;
+		report_.riot_id_tag_line = context.riot_id_tag_line;
+		report_.champion = context.champion;
+		report_.game_mode = context.game_mode;
+		report_.map_number = context.map_number;
+		report_.map = "Map" + QString::number(context.map_number);
+		metrics_.reset();
+		pressed_modifiers_.clear();
+		last_game_seconds_ = context.game_time;
+		anchor_monotonic_ns_ = os_gettime_ns();
+		active_ = true;
+		state_ = collection_state::recording;
+		diagnostics_.write("collector", "report_started",
+				   {{"map", context.map_number}, {"queue", context.queue_id}});
+	}
+	double event_game_seconds(uint64_t time_ns) const
+	{
+		if (time_ns <= anchor_monotonic_ns_)
+			return last_game_seconds_;
+		return last_game_seconds_ + double(time_ns - anchor_monotonic_ns_) / double(second_ns);
+	}
+	bool in_frame(const input_data::trace_event &event) const { return game_frame_.contains(event.x, event.y); }
+	QPointF point_for(const input_data::trace_event &event) const
+	{
+		return {double(event.x - game_frame_.left()) / std::max(1, game_frame_.width()),
+			double(event.y - game_frame_.top()) / std::max(1, game_frame_.height())};
+	}
+	void append_local_event(const QString &kind, const QString &button, const input_data::trace_event &event,
+				double seconds)
+	{
+		if (!in_frame(event))
+			return;
+		const QPointF point = point_for(event);
+		report_.local_gameplay_events.append(
+			QJsonObject{{"sequence", QString::number(event.sequence)},
+				    {"monotonic_time_ns", QString::number(event.time_ns)},
+				    {"game_time_ms", qRound64(seconds * 1000.0)},
+				    {"kind", kind},
+				    {"action", button + "_click"},
+				    {"button", button},
+				    {"pointer", QJsonObject{{"x", point.x()}, {"y", point.y()}}}});
+	}
+	void consume_event(const input_data::trace_event &event)
+	{
+		const double seconds = event_game_seconds(event.time_ns);
+		const QString modifier = gameplay_modifier_name(event.code);
+		if (!modifier.isEmpty()) {
+			if (event.type == EVENT_KEY_PRESSED)
+				pressed_modifiers_.insert(modifier);
+			else if (event.type == EVENT_KEY_RELEASED)
+				pressed_modifiers_.remove(modifier);
+			return;
+		}
+		if (event.type == EVENT_KEY_PRESSED) {
+			const QString chord = gameplay_chord(pressed_modifiers_, event.code);
+			const QString action = gameplay_actions_.value(chord);
+			if (!action.isEmpty()) {
+				metrics_.record_action(seconds, gameplay_input::bound_key);
+				report_.local_gameplay_events.append(
+					QJsonObject{{"sequence", QString::number(event.sequence)},
+						    {"monotonic_time_ns", QString::number(event.time_ns)},
+						    {"game_time_ms", qRound64(seconds * 1000.0)},
+						    {"kind", "bound_key"},
+						    {"action", action},
+						    {"chord", chord}});
+			}
+			return;
+		}
+		if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
+			metrics_.record_motion(seconds, point_for(event), in_frame(event));
+			return;
+		}
+		if (event.type != EVENT_MOUSE_PRESSED || !in_frame(event))
+			return;
+		if (event.code == MOUSE_BUTTON1) {
+			metrics_.record_action(seconds, gameplay_input::left_click);
+			append_local_event("mouse_button", "left", event, seconds);
+		} else if (event.code == MOUSE_BUTTON2) {
+			metrics_.record_action(seconds, gameplay_input::right_click);
+			append_local_event("mouse_button", "right", event, seconds);
+		} else if (event.code == MOUSE_BUTTON3) {
+			metrics_.record_action(seconds, gameplay_input::middle_click);
+			append_local_event("mouse_button", "middle", event, seconds);
+		}
 	}
 	void finalize(const QString &reason)
 	{
-		if (!active_ || finalizing_)
+		if (!active_)
 			return;
-		finalizing_ = true;
 		state_ = collection_state::finalizing;
-		const bool no_valid_samples =
-			std::none_of(report_.samples.cbegin(), report_.samples.cend(),
-				     [](const stat_sample &sample) { return sample.seconds > 0; });
-		if (report_.duration_seconds <= 0 || report_.game_id.isEmpty() || no_valid_samples)
-			diagnostics_.write("collector", "report_finalization_warning",
-					   {{"reason", reason},
-					    {"zero_duration", report_.duration_seconds <= 0},
-					    {"absent_game_id", report_.game_id.isEmpty()},
-					    {"no_valid_stat_samples", no_valid_samples},
-					    {"duration_seconds", report_.duration_seconds},
-					    {"sample_count", report_.samples.size()}});
+		metrics_.evaluate_through(int(std::floor(last_game_seconds_)));
+		report_.duration_seconds = std::max(1, int(std::ceil(last_game_seconds_)));
 		report_.completed_at = QDateTime::currentDateTimeUtc();
+		report_.complete = true;
+		report_.v2_intensity = metrics_.intensity();
+		report_.v2_summary = metrics_.summary();
 		diagnostics_.write("collector", "report_finalized",
 				   {{"reason", reason},
-				    {"sample_count", report_.samples.size()},
-				    {"event_count", report_.events.size()},
-				    {"input_sample_count", report_.input_samples.size()}});
+				    {"duration_seconds", report_.duration_seconds},
+				    {"event_count", report_.local_gameplay_events.size()}});
 		if (submission_callback_)
 			submission_callback_(report_);
 		active_ = false;
-		finalizing_ = false;
-		seen_.clear();
-		last_items_.clear();
-		ability_levels_.clear();
-		telemetry_.reset();
-		last_logged_game_seconds_ = -1;
+		invalid_polls_ = 0;
 		state_ = collection_state::empty;
 	}
+
 	std::atomic<collection_state> &state_;
 	QNetworkAccessManager *manager_{};
 	QTimer *timer_{};
 	std::unique_ptr<QPluginLoader> tls_backend_;
-	int pending_{};
-	int misses_{};
-	bool active_{};
-	bool finalizing_{};
-	QJsonObject batch_;
 	report report_;
-	QSet<QString> seen_;
-	QStringList player_aliases_;
-	QStringList last_items_;
-	QHash<QString, int> ability_levels_;
-	int pending_dpi_{800}, last_game_seconds_{};
-	double pending_hex_radius_percent_{default_hex_radius_percent};
-	QRect pending_game_frame_{0, 0, 1920, 1080};
-	input_telemetry telemetry_;
-	int last_logged_game_seconds_{-1};
-	diagnostic_log diagnostics_;
+	v2_metrics metrics_;
+	QRect game_frame_{0, 0, 1920, 1080};
+	QHash<QString, QString> gameplay_actions_;
+	QSet<QString> pressed_modifiers_;
 	std::function<void(const report &)> submission_callback_;
+	std::function<void(const QString &)> champion_callback_;
+	diagnostic_log diagnostics_;
+	uint64_t anchor_monotonic_ns_{};
+	double last_game_seconds_{};
+	int invalid_polls_{};
+	bool pending_{};
+	bool active_{};
+	bool enabled_{};
+	QString active_champion_;
 };
 
 #include "sources/game_report/collection/lol_shared.inc"

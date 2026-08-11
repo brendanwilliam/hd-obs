@@ -1,4 +1,5 @@
-void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
+void lol_dashboard_visuals::draw_live_keys(QPainter &painter, const QRect &bounds,
+					   lol_dashboard_alignment alignment) const
 {
 	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
@@ -14,7 +15,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		std::max(style_.button_labels.size + count_height + style_.within_element_gap, 80);
 	const int active_title_height = title_height;
 	const int active_top = content.top();
-	const Qt::Alignment edge = right_aligned ? Qt::AlignRight : Qt::AlignLeft;
+	const Qt::Alignment edge = horizontal_alignment(alignment);
 	lol_dashboard_draw_shadowed_text(painter,
 					 QRect(content.left(), active_top, content.width(), active_title_height),
 					 edge | Qt::AlignVCenter,
@@ -27,9 +28,14 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 	const uint64_t now = os_gettime_ns();
 	for (int index = 0; index < visible; ++index) {
 		const auto &key = active_keys_[active_keys_.size() - visible + index];
-		const int x = right_aligned ? active_row.right() - (visible - index) * key_width -
-						      (visible - index - 1) * gap + 1
-					    : active_row.left() + index * (key_width + gap);
+		const int x =
+			alignment == lol_dashboard_alignment::right
+				? active_row.right() - (visible - index) * key_width - (visible - index - 1) * gap + 1
+			: alignment == lol_dashboard_alignment::center
+				? active_row.left() +
+					  (active_row.width() - (visible * key_width + (visible - 1) * gap)) / 2 +
+					  index * (key_width + gap)
+				: active_row.left() + index * (key_width + gap);
 		QColor fill = held_.count(key.code) && held_.at(key.code) ? theme_.active : theme_.inactive;
 		const qreal elapsed =
 			key.fade_until
@@ -58,6 +64,19 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 								     Qt::ElideRight, key_rect.width()));
 		painter.restore();
 	}
+}
+
+void lol_dashboard_visuals::draw_top_keys(QPainter &painter, const QRect &bounds,
+					  lol_dashboard_alignment alignment) const
+{
+	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
+					      -style_.section_padding);
+	const QRect content = section.adjusted(style_.element_padding, style_.element_padding, -style_.element_padding,
+					       -style_.element_padding);
+	if (content.width() < 4 || content.height() < 4)
+		return;
+	painter.setPen(Qt::white);
+	const Qt::Alignment edge = horizontal_alignment(alignment);
 	std::vector<active_key> keys;
 	for (const auto &[code, count] : press_counts_)
 		keys.push_back({code, lol_dashboard_key_label(code), 0, 0, count});
@@ -68,22 +87,25 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		keys.empty() ? 1 : std::max_element(keys.begin(), keys.end(), [](const auto &a, const auto &b) {
 					   return a.count < b.count;
 				   })->count;
-	const int chart_title_height = title_height;
+	const int chart_title_height = QFontMetrics(dashboard_font(style_.number_labels, QFont::Bold)).height() + 2;
 	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
-	const int chart_top =
-		active_top + active_title_height + style_.label_spacing + active_row_height + style_.element_y_gap;
+	const int chart_top = content.top();
 	lol_dashboard_draw_shadowed_text(
 		painter, QRect(content.left(), chart_top, content.width(), chart_title_height), edge | Qt::AlignVCenter,
 		dashboard_text(obs_module_text("LoLPerformanceDashboard.MostUsedKeys"), style_.number_labels));
 	const QRect chart(content.left(), chart_top + chart_title_height + style_.label_spacing, content.width(),
 			  std::max(1, content.bottom() - chart_top - chart_title_height - style_.label_spacing + 1));
+	constexpr int bar_vertical_spacing = 12;
 	const int row_height = std::max(1, chart.height() / 8);
 	for (int index = 0; index < int(keys.size()); ++index) {
-		const int y = chart.top() + index * row_height;
+		const int y = chart.top() + index * (row_height + bar_vertical_spacing);
 		const int text_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
 		const int within_element_gap = style_.within_element_gap;
 		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
-		const int bar_left = right_aligned ? chart.right() - bar + 1 : chart.left();
+		const int bar_left = alignment == lol_dashboard_alignment::right ? chart.right() - bar + 1
+				     : alignment == lol_dashboard_alignment::center
+					     ? chart.left() + (chart.width() - bar) / 2
+					     : chart.left();
 		const QRect bar_rect(bar_left, y + text_height + 2, bar, 12);
 		const auto pressed = held_.find(keys[index].code);
 		painter.setBrush(pressed != held_.end() && pressed->second ? theme_.active : theme_.inactive);
@@ -102,6 +124,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 			count_outside ? std::max(0, std::min(metrics.horizontalAdvance(label),
 							     chart.width() - within_element_gap - count_width))
 				      : std::max(0, bar - within_element_gap - count_width);
+		const bool right_aligned = alignment == lol_dashboard_alignment::right;
 		const QRect label_rect(right_aligned ? bar_rect.right() - label_width + 1 : bar_rect.left(), y,
 				       label_width, text_height);
 		const QRect count_rect =
@@ -116,8 +139,7 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 					   : QRect(bar_rect.right() - count_width + 1, y, count_width, text_height));
 		if (label_width > 0)
 			lol_dashboard_draw_shadowed_text(painter, label_rect,
-							 (right_aligned ? Qt::AlignRight : Qt::AlignLeft) |
-								 Qt::AlignVCenter,
+							 horizontal_alignment(alignment) | Qt::AlignVCenter,
 							 metrics.elidedText(label, Qt::ElideRight, label_rect.width()));
 		lol_dashboard_draw_shadowed_text(painter, count_rect,
 						 (right_aligned ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter,

@@ -2,6 +2,8 @@
 
 #include "sources/hud_layout/lol_layout.hpp"
 
+#include <array>
+
 namespace sources {
 
 struct lol_dashboard_rect {
@@ -36,8 +38,9 @@ struct lol_dashboard_rect {
 
 struct lol_dashboard_camera_layout {
 	bool enabled{};
+	bool next_to_minimap{};
 	double aspect{1.0};
-	int width_percent{67};
+	int width_percent{100};
 	int height_percent{100};
 	int scale_percent{100};
 	int translate_x_percent{};
@@ -57,9 +60,19 @@ struct lol_dashboard_image_layout {
 
 struct lol_dashboard_panels {
 	lol_dashboard_rect header, heatmap, summary, keys, camera_mask, camera, minimap_cover_mask, minimap_cover;
-	bool right_aligned{};
 	bool camera_visible{};
 };
+
+// A v2 HUD section is split into equal slots by its caller.  Keeping this
+// geometry independent of rendering makes every widget usable in every
+// permitted section.
+std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_rect &bounds, int count,
+							    bool horizontal, int gap = 10);
+std::array<lol_dashboard_rect, 4> lol_dashboard_split_weighted_slots(const lol_dashboard_rect &bounds,
+								     const std::array<int, 4> &weights, int count,
+								     bool horizontal, int gap = 10);
+std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_rect &bounds,
+							    const std::array<int, 4> &heights, int count, int gap = 10);
 
 lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect);
 lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect);

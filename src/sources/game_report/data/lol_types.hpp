@@ -1,11 +1,12 @@
 #pragma once
 
 #include <QDateTime>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 #include <QVector>
 
-#include "sources/game_report/collection/lol_hexbin.hpp"
+#include "sources/game_report/collection/lol_v2_metrics.hpp"
 
 namespace sources::lol_game_report {
 
@@ -39,17 +40,6 @@ struct item_event {
 	int item_id{};
 	int seconds{};
 };
-struct input_sample {
-	int seconds{};
-	int actions{};
-	double mouse_distance_pixels{};
-	double max_velocity_pixels_per_second{};
-};
-struct heatmap_bin {
-	int x{};
-	int y{};
-	int count{};
-};
 struct chapter {
 	int start_seconds{};
 	int end_seconds{};
@@ -57,9 +47,19 @@ struct chapter {
 };
 
 struct report {
-	int schema_version{4};
+	int schema_version{2};
 	QString id;
+	QDateTime observed_started_at;
 	QDateTime completed_at;
+	QString riot_id_game_name;
+	QString riot_id_tag_line;
+	int map_number{11};
+	bool frontmost_capture{true};
+	bool complete{};
+	bool event_detail_truncated{};
+	QVector<intensity_sample> v2_intensity;
+	metric_summary v2_summary;
+	QJsonArray local_gameplay_events;
 	QString player;
 	QString game_mode;
 	QString map;
@@ -78,12 +78,6 @@ struct report {
 	QStringList runes;
 	QVector<ability_level> abilities;
 	QVector<item_event> item_events;
-	QVector<input_sample> input_samples;
-	QVector<heatmap_bin> heatmap;
-	hex_grid hex_geometry;
-	QVector<hexbin> hexbins;
-	bool hexbin_estimated{};
-	int dpi{800};
 	QJsonObject assets;
 	QVector<chapter> chapters;
 	QJsonObject enrichment;
