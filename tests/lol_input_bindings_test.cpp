@@ -16,5 +16,9 @@ int main()
 	       bindings.resolve("4", {"Alt", "Ctrl"})->action == "smart_cast_trinket");
 	assert(bindings.gameplay_actions().value("Alt+Ctrl+4") == "smart_cast_trinket");
 	assert(!bindings.resolve("1", {}));
+	assert(bindings.parse("[GameEvents]\nevtCastSpell1=[q]\n[GameEvents.Ahri]\nevtCastSpell1=[w]", "Ahri"));
+	assert(bindings.resolve("w", {}) && !bindings.resolve("q", {}));
+	assert(bindings.parse("[GameEvents]\nevtCastSpell1=[q]\n[GameEvents.Lux]\nevtCastSpell1=[e]", "Lux"));
+	assert(bindings.resolve("e", {}) && !bindings.resolve("q", {}));
 	return 0;
 }

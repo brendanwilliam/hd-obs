@@ -6,12 +6,7 @@ namespace sources::lol_game_report {
 namespace {
 int queue_id(const QJsonObject &game)
 {
-	for (const char *key : {"queueId", "gameQueue", "queueID"}) {
-		const int value = game[key].toInt();
-		if (value > 0)
-			return value;
-	}
-	return 0;
+	return game["gameQueueConfigId"].toInt();
 }
 } // namespace
 

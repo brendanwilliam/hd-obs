@@ -73,6 +73,10 @@ public:
 		if (!active_)
 			game_frame_ = frame;
 	}
+	void set_champion_callback(std::function<void(const QString &)> callback)
+	{
+		champion_callback_ = std::move(callback);
+	}
 	void set_gameplay_actions(const QHash<QString, QString> &actions) { gameplay_actions_ = actions; }
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
@@ -124,6 +128,11 @@ private:
 			if (active_ && (context.game_end || ++invalid_polls_ >= 3))
 				finalize(context.game_end ? "game_end" : "invalid_game_state");
 			return;
+		}
+		if (context.champion != active_champion_) {
+			active_champion_ = context.champion;
+			if (champion_callback_)
+				champion_callback_(active_champion_);
 		}
 		invalid_polls_ = 0;
 		if (!active_) {
@@ -254,12 +263,14 @@ private:
 	QHash<QString, QString> gameplay_actions_;
 	QSet<QString> pressed_modifiers_;
 	std::function<void(const report &)> submission_callback_;
+	std::function<void(const QString &)> champion_callback_;
 	diagnostic_log diagnostics_;
 	uint64_t anchor_monotonic_ns_{};
 	double last_game_seconds_{};
 	int invalid_polls_{};
 	bool pending_{};
 	bool active_{};
+	QString active_champion_;
 };
 
 #include "sources/game_report/collection/lol_shared.inc"

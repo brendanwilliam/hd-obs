@@ -52,7 +52,7 @@ public:
 		if (input_path != next_input_path)
 			input_stamp_ = {-1, -1};
 		input_path = next_input_path;
-		reload_bindings();
+		reload_bindings(collector.active_champion());
 	}
 	void tick(const QRect &game_frame, double hex_radius_percent)
 	{
@@ -63,29 +63,31 @@ public:
 		collector.set_hex_radius_percent(hex_radius_percent);
 		collector.set_game_frame(game_frame);
 		collector.set_development_logs(development_logs);
-		reload_bindings();
 		collector.tick(dpi, hex_radius_percent);
+		reload_bindings(collector.active_champion());
 	}
-	void reload_bindings()
+	void reload_bindings(const QString &champion)
 	{
 		const QFileInfo input(input_path);
 		const std::pair<qint64, qint64> stamp{input.lastModified().toMSecsSinceEpoch(), input.size()};
-		if (input_path.isEmpty() || stamp == input_stamp_)
+		if (input_path.isEmpty() || (stamp == input_stamp_ && champion == input_champion_))
 			return;
-		input_stamp_ = stamp;
 		QFile file(input_path);
 		if (!file.open(QIODevice::ReadOnly))
 			return;
 		lol_input_bindings bindings;
-		if (!bindings.parse(QString::fromUtf8(file.readAll())))
+		if (!bindings.parse(QString::fromUtf8(file.readAll()), champion))
 			return;
 		collector.set_gameplay_actions(bindings.gameplay_actions());
+		input_stamp_ = stamp;
+		input_champion_ = champion;
 	}
 	lol_game_report::collector collector;
 	lol_game_report::online_reports online;
 	bool development_logs{};
 	int dpi{800};
 	QString input_path;
+	QString input_champion_;
 	std::pair<qint64, qint64> input_stamp_{};
 	static implementation *owner;
 };

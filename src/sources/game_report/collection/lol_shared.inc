@@ -1,16 +1,22 @@
 struct shared_collector {
 	std::mutex mutex;
+	std::mutex champion_mutex;
 	int references{};
 	int development_log_references{};
 	std::atomic<collection_state> state{collection_state::empty};
 	QThread thread;
 	worker *worker{};
+	QString active_champion;
 	void acquire()
 	{
 		std::lock_guard lock(mutex);
 		if (references++ != 0)
 			return;
 		worker = new class worker(state);
+		worker->set_champion_callback([this](const QString &champion) {
+			std::lock_guard lock(champion_mutex);
+			active_champion = champion;
+		});
 		worker->moveToThread(&thread);
 		QObject::connect(&thread, &QThread::started, worker, [this] { worker->start(); });
 		thread.start();
@@ -27,6 +33,10 @@ struct shared_collector {
 		thread.wait();
 		delete worker;
 		worker = nullptr;
+		{
+			std::lock_guard champion_lock(champion_mutex);
+			active_champion.clear();
+		}
 		state = collection_state::empty;
 	}
 	void set_dpi(int dpi)
@@ -48,6 +58,11 @@ struct shared_collector {
 	{
 		QMetaObject::invokeMethod(
 			worker, [this, actions] { worker->set_gameplay_actions(actions); }, Qt::QueuedConnection);
+	}
+	QString champion()
+	{
+		std::lock_guard lock(champion_mutex);
+		return active_champion;
 	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
 	{
@@ -126,6 +141,10 @@ void collector::set_game_frame(const QRect &frame)
 void collector::set_gameplay_actions(const QHash<QString, QString> &actions)
 {
 	shared().set_gameplay_actions(actions);
+}
+QString collector::active_champion() const
+{
+	return shared().champion();
 }
 void collector::tick(int dpi, double hex_radius_percent)
 {
