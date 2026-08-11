@@ -95,6 +95,8 @@ target_sources(
     src/sources/dashboard/rendering/lol_keys.inc
     src/sources/game_report/collection/lol_collector.hpp
     src/sources/game_report/collection/lol_collector.cpp
+    src/sources/game_report/collection/lol_game_context.hpp
+    src/sources/game_report/collection/lol_game_context.cpp
     src/sources/game_report/collection/lol_hexbin.hpp
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.hpp
@@ -177,6 +179,15 @@ if(BUILD_TESTING)
   target_compile_features(lol-session-store-test PRIVATE cxx_std_17)
   add_test(NAME lol-session-store COMMAND lol-session-store-test)
   add_executable(
+    lol-game-context-test
+    tests/lol_game_context_test.cpp
+    src/sources/game_report/collection/lol_game_context.cpp
+  )
+  target_link_libraries(lol-game-context-test PRIVATE Qt6::Core)
+  target_include_directories(lol-game-context-test PRIVATE src)
+  target_compile_features(lol-game-context-test PRIVATE cxx_std_17)
+  add_test(NAME lol-game-context COMMAND lol-game-context-test)
+  add_executable(
     lol-v2-metrics-test
     tests/lol_v2_metrics_test.cpp
     src/sources/game_report/collection/lol_v2_metrics.cpp
@@ -198,10 +209,12 @@ if(BUILD_TESTING)
     target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-session-store-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
+    target_link_options(lol-game-context-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-v2-metrics-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-session-store-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-game-context-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-v2-metrics-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     target_link_options(lol-input-bindings-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(lol-input-bindings-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")

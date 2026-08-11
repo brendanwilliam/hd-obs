@@ -1,5 +1,7 @@
 #include "sources/game_report/integration/lol_online_reports.hpp"
 
+#include "sources/game_report/data/lol_session_store.hpp"
+
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDesktopServices>
@@ -58,6 +60,7 @@ public:
 	QNetworkAccessManager network;
 	QVector<pending_report> queue;
 	QHash<QString, QString> uploaded_payloads;
+	std::unique_ptr<session_store> sessions;
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
@@ -67,6 +70,7 @@ public:
 
 online_reports::online_reports(QObject *parent) : QObject(parent), implementation_(new implementation(this))
 {
+	implementation_->sessions = std::make_unique<session_store>(implementation_->root + "/sessions");
 	load_queue();
 	implementation_->token = credential();
 }
@@ -142,6 +146,8 @@ void online_reports::clear_credential() const
 
 void online_reports::submit(const report &value)
 {
+	if (implementation_->sessions)
+		implementation_->sessions->save({value, upload_state::pending, QDateTime::currentDateTimeUtc(), 0});
 	QJsonObject payload = to_json(value);
 	const QString hash = payload_hash(payload);
 	payload.insert("payload_hash", hash);
@@ -193,6 +199,10 @@ void online_reports::tick()
 		if (!implementation_->queue.isEmpty() && reply->error() == QNetworkReply::NoError && code >= 200 &&
 		    code < 300 && (result_status == "accepted" || result_status == "duplicate")) {
 			const QJsonObject uploaded = implementation_->queue.first().payload;
+			if (implementation_->sessions)
+				implementation_->sessions->update_upload(uploaded["report_id"].toString(),
+									 upload_state::confirmed, {},
+									 implementation_->queue.first().attempts);
 			implementation_->queue.removeFirst();
 			implementation_->uploaded_payloads.insert(uploaded["report_id"].toString(),
 								  uploaded["payload_hash"].toString());
@@ -201,6 +211,11 @@ void online_reports::tick()
 		} else if (!implementation_->queue.isEmpty() && result_status == "rejected") {
 			implementation_->state = "Upload rejected. Update Hands Diff before retrying this report.";
 			implementation_->queue.first().retry_at = QDateTime::currentDateTimeUtc().addYears(10);
+			if (implementation_->sessions)
+				implementation_->sessions->update_upload(
+					implementation_->queue.first().payload["report_id"].toString(),
+					upload_state::rejected, implementation_->queue.first().retry_at,
+					implementation_->queue.first().attempts);
 		} else if (code == 401 || code == 403) {
 			implementation_->auth_required = true;
 			implementation_->state =
@@ -209,6 +224,10 @@ void online_reports::tick()
 			auto &entry = implementation_->queue.first();
 			entry.attempts = qMin(entry.attempts + 1, 8);
 			entry.retry_at = QDateTime::currentDateTimeUtc().addSecs(1 << qMin(entry.attempts, 8));
+			if (implementation_->sessions)
+				implementation_->sessions->update_upload(entry.payload["report_id"].toString(),
+									 upload_state::pending, entry.retry_at,
+									 entry.attempts);
 			implementation_->state = "Upload delayed; it will retry automatically.";
 		}
 		save_queue();
