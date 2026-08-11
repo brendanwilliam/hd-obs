@@ -97,6 +97,8 @@ target_sources(
     src/sources/game_report/collection/lol_hexbin.cpp
     src/sources/game_report/collection/lol_input_telemetry.hpp
     src/sources/game_report/collection/lol_input_telemetry.cpp
+    src/sources/game_report/collection/lol_v2_metrics.hpp
+    src/sources/game_report/collection/lol_v2_metrics.cpp
     src/sources/game_report/collection/lol_shared.inc
     src/sources/game_report/data/lol_diagnostics.hpp
     src/sources/game_report/data/lol_diagnostics.cpp
@@ -158,10 +160,20 @@ if(BUILD_TESTING)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
+  add_executable(
+    lol-v2-metrics-test
+    tests/lol_v2_metrics_test.cpp
+    src/sources/game_report/collection/lol_v2_metrics.cpp
+  )
+  target_link_libraries(lol-v2-metrics-test PRIVATE Qt6::Core)
+  target_include_directories(lol-v2-metrics-test PRIVATE src)
+  target_compile_features(lol-v2-metrics-test PRIVATE cxx_std_17)
+  add_test(NAME lol-v2-metrics COMMAND lol-v2-metrics-test)
   if(APPLE)
     target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     set_target_properties(league-safe-area-layout-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
     set_target_properties(lol-game-report-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+    set_target_properties(lol-v2-metrics-test PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
   endif()
 endif()
