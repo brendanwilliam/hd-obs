@@ -16,6 +16,7 @@ namespace {
 constexpr const char *dpi_key = "lol_dashboard.report.mouse_dpi";
 constexpr const char *development_logs_key = "lol_dashboard.report.development_logs";
 constexpr const char *online_service_url_key = "lol_dashboard.report.online_service_url";
+constexpr const char *upload_enabled_key = "lol_dashboard.report.upload_enabled";
 constexpr const char *game_config_key = "lol_dashboard.game_cfg";
 } // namespace
 
@@ -47,6 +48,7 @@ public:
 		dpi = int(obs_data_get_int(settings, dpi_key));
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		online.set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
+		online.set_upload_enabled(obs_data_get_bool(settings, upload_enabled_key));
 		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
 		const QString next_input_path = game_config.dir().filePath("input.ini");
 		if (input_path != next_input_path)
@@ -135,6 +137,7 @@ void lol_report_manager::defaults(obs_data *settings)
 	auto *value = reinterpret_cast<obs_data_t *>(settings);
 	obs_data_set_default_int(value, dpi_key, 800);
 	obs_data_set_default_bool(value, development_logs_key, false);
+	obs_data_set_default_bool(value, upload_enabled_key, true);
 	obs_data_set_default_string(value, online_service_url_key, ONLINE_REPORTS_SERVICE_URL);
 }
 void lol_report_manager::add_properties(obs_properties *properties)
@@ -169,6 +172,7 @@ void lol_report_manager::add_properties(obs_properties *properties)
 					.toUtf8()
 					.constData(),
 				OBS_TEXT_INFO);
+	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
 	obs_properties_add_button2(
 		online, "lol_dashboard.report.online_link", obs_module_text("LoLGameReport.OnlineLink"),
 		[](obs_properties_t *, obs_property_t *, void *data) {

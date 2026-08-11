@@ -68,7 +68,7 @@ public:
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
 	QTimer device_poll_timer, upload_timer;
-	bool auth_required{}, upload_in_flight{};
+	bool auth_required{}, upload_in_flight{}, upload_enabled{true};
 };
 
 online_reports::online_reports(QObject *parent) : QObject(parent), implementation_(new implementation(this))
@@ -168,6 +168,8 @@ void online_reports::clear_credential() const
 
 void online_reports::submit(const report &value)
 {
+	if (!implementation_->upload_enabled)
+		return;
 	if (implementation_->sessions)
 		implementation_->sessions->save({value, upload_state::pending, QDateTime::currentDateTimeUtc(), 0});
 	QJsonObject payload = to_json(value);
@@ -191,6 +193,15 @@ void online_reports::submit(const report &value)
 	save_queue();
 }
 
+void online_reports::set_upload_enabled(bool enabled)
+{
+	implementation_->upload_enabled = enabled;
+	if (!enabled)
+		implementation_->state = "Uploads are disabled. Completed reports remain local only.";
+	else if (linked())
+		implementation_->state = "Connected. Uploads are enabled.";
+}
+
 void online_reports::set_service_url(const QString &value)
 {
 	QUrl candidate(value.trimmed());
@@ -200,8 +211,8 @@ void online_reports::set_service_url(const QString &value)
 
 void online_reports::tick()
 {
-	if (!linked() || implementation_->auth_required || implementation_->upload_in_flight ||
-	    implementation_->queue.isEmpty())
+	if (!implementation_->upload_enabled || !linked() || implementation_->auth_required ||
+	    implementation_->upload_in_flight || implementation_->queue.isEmpty())
 		return;
 	auto &entry = implementation_->queue.first();
 	if (entry.retry_at > QDateTime::currentDateTimeUtc())

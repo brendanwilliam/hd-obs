@@ -14,6 +14,7 @@ public:
 	~online_reports() override;
 	void submit(const report &value);
 	void tick();
+	void set_upload_enabled(bool enabled);
 	void set_service_url(const QString &value);
 	void begin_link();
 	void unlink();
