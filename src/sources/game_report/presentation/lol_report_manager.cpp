@@ -48,7 +48,10 @@ public:
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		online.set_service_url(QString::fromUtf8(obs_data_get_string(settings, online_service_url_key)));
 		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
-		input_path = game_config.dir().filePath("input.ini");
+		const QString next_input_path = game_config.dir().filePath("input.ini");
+		if (input_path != next_input_path)
+			input_stamp_ = {-1, -1};
+		input_path = next_input_path;
 		reload_bindings();
 	}
 	void tick(const QRect &game_frame, double hex_radius_percent)
