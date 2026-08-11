@@ -24,9 +24,23 @@ struct lol_dashboard_theme {
 };
 
 struct lol_dashboard_regions {
-	bool intensity{true};
-	bool keys{true};
-	bool mouse_activity{true};
+	enum class widget { none, intensity, mouse_activity, cumulative_totals, mouse_distance, live_keys, top_keys };
+	struct section {
+		bool enabled{};
+		int count{};
+		std::array<widget, 4> widgets{};
+	};
+	section top{true, 2, {widget::intensity, widget::intensity}};
+	section left{true, 3, {widget::mouse_activity, widget::cumulative_totals, widget::mouse_distance}};
+	section right{true, 2, {widget::live_keys, widget::top_keys}};
+};
+
+struct lol_dashboard_trail_filter {
+	bool middle_clicks{};
+	bool key_markers{};
+	bool advanced{};
+	bool whitelist{};
+	std::vector<QString> keys;
 };
 
 struct lol_dashboard_font_style {
@@ -64,18 +78,19 @@ class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
 		       int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
-		       const lol_dashboard_style &style);
+		       const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
 	void clear_live_keys();
 	void reset();
-	void draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary, const QRect &keys,
-		  bool right_aligned) const;
+	void draw(QPainter &painter, const std::array<QRect, 4> &top, const std::array<QRect, 4> &left,
+		  const std::array<QRect, 4> &right, bool right_aligned) const;
 
 private:
 	struct trail_event {
 		QPointF point;
 		uint16_t button{};
+		QString label;
 	};
 	struct active_key {
 		uint16_t code;
@@ -87,13 +102,19 @@ private:
 	void advance(uint64_t now);
 	void on_event(const input_data::trace_event &event);
 	void draw_pointer(QPainter &painter, const QRect &bounds) const;
-	void draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const;
-	void draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
+	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned) const;
+	void draw_mouse_distance(QPainter &painter, const QRect &bounds, bool right_aligned) const;
+	void draw_live_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
+	void draw_top_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const;
 	void draw_intensity(QPainter &painter, const QRect &bounds) const;
+	void draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
+			 bool right_aligned) const;
+	bool accepts_key(const QString &label) const;
 	QString distance_label() const;
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
 	lol_dashboard_regions regions_;
+	lol_dashboard_trail_filter trail_filter_;
 	lol_dashboard_style style_;
 	QRect game_frame_{0, 0, 1920, 1080};
 	QRect pointer_bounds_;

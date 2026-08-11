@@ -83,6 +83,10 @@ target_sources(
     src/sources/dashboard/rendering/lol_camera_visibility.hpp
     src/sources/dashboard/rendering/lol_camera_visibility.cpp
     src/sources/dashboard/presentation/lol_properties.inc
+    src/sources/dashboard/presentation/lol_defaults.inc
+    src/sources/dashboard/presentation/lol_dashboard_settings.hpp
+    src/sources/dashboard/presentation/lol_dashboard_settings.cpp
+    src/sources/dashboard/presentation/lol_dashboard_helpers.hpp
     src/sources/dashboard/rendering/lol_layout.hpp
     src/sources/dashboard/rendering/lol_layout.cpp
     src/sources/dashboard/presentation/lol_source.hpp

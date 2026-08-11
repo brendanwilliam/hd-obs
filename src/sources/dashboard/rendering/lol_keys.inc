@@ -1,4 +1,4 @@
-void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
+void lol_dashboard_visuals::draw_live_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
 {
 	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
 					      -style_.section_padding);
@@ -58,6 +58,18 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 								     Qt::ElideRight, key_rect.width()));
 		painter.restore();
 	}
+}
+
+void lol_dashboard_visuals::draw_top_keys(QPainter &painter, const QRect &bounds, bool right_aligned) const
+{
+	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
+					      -style_.section_padding);
+	const QRect content = section.adjusted(style_.element_padding, style_.element_padding, -style_.element_padding,
+					       -style_.element_padding);
+	if (content.width() < 4 || content.height() < 4)
+		return;
+	painter.setPen(Qt::white);
+	const Qt::Alignment edge = right_aligned ? Qt::AlignRight : Qt::AlignLeft;
 	std::vector<active_key> keys;
 	for (const auto &[code, count] : press_counts_)
 		keys.push_back({code, lol_dashboard_key_label(code), 0, 0, count});
@@ -68,10 +80,9 @@ void lol_dashboard_visuals::draw_keys(QPainter &painter, const QRect &bounds, bo
 		keys.empty() ? 1 : std::max_element(keys.begin(), keys.end(), [](const auto &a, const auto &b) {
 					   return a.count < b.count;
 				   })->count;
-	const int chart_title_height = title_height;
+	const int chart_title_height = QFontMetrics(dashboard_font(style_.number_labels, QFont::Bold)).height() + 2;
 	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
-	const int chart_top =
-		active_top + active_title_height + style_.label_spacing + active_row_height + style_.element_y_gap;
+	const int chart_top = content.top();
 	lol_dashboard_draw_shadowed_text(
 		painter, QRect(content.left(), chart_top, content.width(), chart_title_height), edge | Qt::AlignVCenter,
 		dashboard_text(obs_module_text("LoLPerformanceDashboard.MostUsedKeys"), style_.number_labels));

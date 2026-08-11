@@ -59,6 +59,28 @@ lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bound
 	return result;
 }
 
+std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_rect &bounds, int count,
+							    bool horizontal, int gap)
+{
+	std::array<lol_dashboard_rect, 4> result{};
+	count = std::clamp(count, 0, 4);
+	if (bounds.isEmpty() || count == 0)
+		return result;
+	gap = std::max(0, gap);
+	const int length = horizontal ? bounds.width() : bounds.height();
+	const int usable = std::max(0, length - gap * (count - 1));
+	for (int index = 0; index < count; ++index) {
+		const int start = index * usable / count + index * gap;
+		const int end = (index + 1) * usable / count;
+		if (horizontal)
+			result[index] = {bounds.left() + start, bounds.top(), std::max(1, end - start),
+					 bounds.height()};
+		else
+			result[index] = {bounds.left(), bounds.top() + start, bounds.width(), std::max(1, end - start)};
+	}
+	return result;
+}
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
 						    const lol_dashboard_image_layout &minimap_cover, int hud_padding)

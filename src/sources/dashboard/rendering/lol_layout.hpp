@@ -2,6 +2,8 @@
 
 #include "sources/hud_layout/lol_layout.hpp"
 
+#include <array>
+
 namespace sources {
 
 struct lol_dashboard_rect {
@@ -58,6 +60,12 @@ struct lol_dashboard_panels {
 	bool right_aligned{};
 	bool camera_visible{};
 };
+
+// A v2 HUD section is split into equal slots by its caller.  Keeping this
+// geometry independent of rendering makes every widget usable in every
+// permitted section.
+std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_rect &bounds, int count,
+							    bool horizontal, int gap = 10);
 
 lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect);
 lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect);

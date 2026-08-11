@@ -6,6 +6,7 @@
 #include <QFontMetrics>
 #include <QPainter>
 #include <QPolygonF>
+#include <QStringList>
 #include <algorithm>
 #include <cmath>
 #include <obs-module.h>
@@ -51,14 +52,25 @@ QString dashboard_text(const QString &text, const lol_dashboard_font_style &styl
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
 				      int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
-				      const lol_dashboard_style &style)
+				      const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter)
 {
 	theme_ = theme;
 	regions_ = regions;
 	style_ = style;
+	trail_filter_ = trail_filter;
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
 	pointer_bounds_ = lol_dashboard_heatmap_content_bounds(pointer_bounds, game_frame_, style_);
+}
+
+bool lol_dashboard_visuals::accepts_key(const QString &label) const
+{
+	if (!trail_filter_.advanced || trail_filter_.keys.empty())
+		return true;
+	const bool listed = std::any_of(trail_filter_.keys.begin(), trail_filter_.keys.end(), [&](const QString &key) {
+		return key.compare(label, Qt::CaseInsensitive) == 0;
+	});
+	return trail_filter_.whitelist ? listed : !listed;
 }
 
 QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
@@ -141,10 +153,22 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 	} else if (event.type == EVENT_MOUSE_PRESSED) {
 		++current_[1];
 		++total_clicks_;
-		if (game_frame_.contains(event.x, event.y)) {
+		const bool supported = event.code == MOUSE_BUTTON1 || event.code == MOUSE_BUTTON2 ||
+				       (trail_filter_.middle_clicks && event.code == MOUSE_BUTTON3);
+		if (supported && game_frame_.contains(event.x, event.y)) {
 			const QPointF point(double(event.x - game_frame_.left()) / std::max(1, game_frame_.width()),
 					    double(event.y - game_frame_.top()) / std::max(1, game_frame_.height()));
-			trail_.push_back({point, event.code});
+			trail_.push_back({point, event.code, {}});
+			if (trail_.size() > 20)
+				trail_.pop_front();
+		}
+	}
+	if (event.type == EVENT_KEY_PRESSED && trail_filter_.key_markers && game_frame_.contains(event.x, event.y)) {
+		const QString label = lol_dashboard_key_label(event.code);
+		if (accepts_key(label)) {
+			const QPointF point(double(event.x - game_frame_.left()) / std::max(1, game_frame_.width()),
+					    double(event.y - game_frame_.top()) / std::max(1, game_frame_.height()));
+			trail_.push_back({point, 0, label});
 			if (trail_.size() > 20)
 				trail_.pop_front();
 		}
@@ -187,15 +211,32 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 	painter.setClipRect(bounds);
 	for (size_t index = 0; index < trail_.size(); ++index) {
 		const auto &event = trail_[index];
+		const QPointF point(bounds.left() + event.point.x() * bounds.width(),
+				    bounds.top() + event.point.y() * bounds.height());
+		if (index > 0) {
+			const auto &previous = trail_[index - 1];
+			QColor line(255, 255, 255);
+			line.setAlphaF(std::pow(0.95, trail_.size() - index));
+			painter.setPen(QPen(line, 2));
+			painter.drawLine(QPointF(bounds.left() + previous.point.x() * bounds.width(),
+						 bounds.top() + previous.point.y() * bounds.height()),
+					 point);
+		}
 		QColor color = event.button == MOUSE_BUTTON1   ? QColor(239, 68, 68)
 			       : event.button == MOUSE_BUTTON2 ? QColor(59, 130, 246)
 							       : QColor(250, 204, 21);
 		color.setAlphaF(std::pow(0.95, trail_.size() - 1 - index));
 		painter.setBrush(color);
 		painter.setPen(Qt::NoPen);
-		painter.drawEllipse(QPointF(bounds.left() + event.point.x() * bounds.width(),
-					    bounds.top() + event.point.y() * bounds.height()),
-				    7, 7);
+		painter.drawEllipse(point, 7, 7);
+		if (!event.label.isEmpty()) {
+			painter.setPen(Qt::white);
+			painter.setFont(dashboard_font(style_.numbers_secondary, QFont::Bold));
+			lol_dashboard_draw_shadowed_text(painter,
+							 QRect(int(point.x()) - 24, int(point.y()) - 12, 48, 24),
+							 Qt::AlignCenter,
+							 dashboard_text(event.label, style_.numbers_secondary));
+		}
 	}
 	if (pointer_) {
 		painter.setBrush(Qt::white);
@@ -205,45 +246,40 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 				    5, 5);
 	}
 }
-void lol_dashboard_visuals::draw_summary(QPainter &painter, const QRect &bounds, bool right_aligned) const
+namespace {
+void draw_dashboard_value(QPainter &painter, const QRect &bounds, const sources::lol_dashboard_style &style,
+			  const sources::lol_dashboard_theme &theme, const QString &label, const QString &value,
+			  bool right_aligned)
 {
-	Q_UNUSED(right_aligned);
 	painter.setPen(Qt::white);
-	const QRect content = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
-					      -style_.section_padding);
-	const int label_height = QFontMetrics(dashboard_font(style_.number_labels, QFont::Bold)).height() + 2;
-	const int value_height = QFontMetrics(dashboard_font(style_.number_primary, QFont::Bold)).height() + 2;
-	int top = content.top() + style_.element_padding;
-	const auto alignment = Qt::AlignLeft | Qt::AlignVCenter;
-	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
-	lol_dashboard_draw_shadowed_text(
-		painter,
-		QRect(content.left() + style_.element_padding, top, content.width() - 2 * style_.element_padding,
-		      label_height),
-		alignment, dashboard_text(obs_module_text("MouseActivity.Distance"), style_.number_labels));
-	top += label_height + style_.label_spacing;
-	painter.setFont(dashboard_font(style_.number_primary, QFont::Bold));
-	painter.setPen(theme_.active);
+	const QRect content = bounds.adjusted(style.section_padding + style.element_padding,
+					      style.section_padding + style.element_padding,
+					      -style.section_padding - style.element_padding,
+					      -style.section_padding - style.element_padding);
+	const Qt::Alignment alignment = (right_aligned ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+	painter.setFont(dashboard_font(style.number_labels, QFont::Bold));
 	lol_dashboard_draw_shadowed_text(painter,
-					 QRect(content.left() + style_.element_padding, top,
-					       content.width() - 2 * style_.element_padding, value_height),
-					 alignment, dashboard_text(distance_label(), style_.number_primary));
-	top += value_height + style_.element_y_gap;
-	painter.setPen(Qt::white);
-	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
+					 QRect(content.left(), content.top(), content.width(), content.height() / 2),
+					 alignment, dashboard_text(label, style.number_labels));
+	painter.setFont(dashboard_font(style.number_primary, QFont::Bold));
+	painter.setPen(theme.active);
 	lol_dashboard_draw_shadowed_text(painter,
-					 QRect(content.left() + style_.element_padding, top,
-					       content.width() - 2 * style_.element_padding, label_height),
-					 alignment,
-					 dashboard_text(obs_module_text("MouseActivity.Clicks"), style_.number_labels));
-	top += label_height + style_.label_spacing;
-	painter.setFont(dashboard_font(style_.number_primary, QFont::Bold));
-	painter.setPen(theme_.active);
-	lol_dashboard_draw_shadowed_text(painter,
-					 QRect(content.left() + style_.element_padding, top,
-					       content.width() - 2 * style_.element_padding, value_height),
-					 alignment,
-					 dashboard_text(QString::number(total_clicks_), style_.number_primary));
+					 QRect(content.left(), content.top() + content.height() / 2, content.width(),
+					       content.height() / 2),
+					 alignment, dashboard_text(value, style.number_primary));
+}
+} // namespace
+
+void lol_dashboard_visuals::draw_cumulative_totals(QPainter &painter, const QRect &bounds, bool right_aligned) const
+{
+	draw_dashboard_value(painter, bounds, style_, theme_, obs_module_text("MouseActivity.Clicks"),
+			     QString::number(total_clicks_), right_aligned);
+}
+
+void lol_dashboard_visuals::draw_mouse_distance(QPainter &painter, const QRect &bounds, bool right_aligned) const
+{
+	draw_dashboard_value(painter, bounds, style_, theme_, obs_module_text("MouseActivity.Distance"),
+			     distance_label(), right_aligned);
 }
 #include "sources/dashboard/rendering/lol_keys.inc"
 void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bounds) const
@@ -313,22 +349,50 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 	}
 }
 
-void lol_dashboard_visuals::draw(QPainter &painter, const QRect &header, const QRect &heatmap, const QRect &summary,
-				 const QRect &keys, bool right_aligned) const
+void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
+					bool right_aligned) const
+{
+	if (bounds.isEmpty())
+		return;
+	switch (widget) {
+	case lol_dashboard_regions::widget::intensity:
+		draw_intensity(painter, bounds);
+		break;
+	case lol_dashboard_regions::widget::mouse_activity:
+		draw_pointer(painter, lol_dashboard_heatmap_content_bounds(bounds, game_frame_, style_));
+		painter.setClipping(false);
+		break;
+	case lol_dashboard_regions::widget::cumulative_totals:
+		draw_cumulative_totals(painter, bounds, right_aligned);
+		break;
+	case lol_dashboard_regions::widget::mouse_distance:
+		draw_mouse_distance(painter, bounds, right_aligned);
+		break;
+	case lol_dashboard_regions::widget::live_keys:
+		draw_live_keys(painter, bounds, right_aligned);
+		break;
+	case lol_dashboard_regions::widget::top_keys:
+		draw_top_keys(painter, bounds, right_aligned);
+		break;
+	case lol_dashboard_regions::widget::none:
+		break;
+	}
+}
+
+void lol_dashboard_visuals::draw(QPainter &painter, const std::array<QRect, 4> &top, const std::array<QRect, 4> &left,
+				 const std::array<QRect, 4> &right, bool right_aligned) const
 {
 	ensure_dashboard_fonts_registered();
-	painter.fillRect(QRect(0, 0, std::max({header.right(), heatmap.right(), summary.right(), keys.right()}) + 1,
-			       std::max({header.bottom(), heatmap.bottom(), summary.bottom(), keys.bottom()}) + 1),
-			 theme_.background);
-	if (regions_.intensity)
-		draw_intensity(painter, header);
-	if (regions_.mouse_activity)
-		draw_pointer(painter, lol_dashboard_heatmap_content_bounds(heatmap, game_frame_, style_));
-	painter.setClipping(false);
-	if (regions_.mouse_activity)
-		draw_summary(painter, summary, right_aligned);
-	if (regions_.keys)
-		draw_keys(painter, keys, right_aligned);
+	const auto draw_section = [&](const lol_dashboard_regions::section &section,
+				      const std::array<QRect, 4> &slot_rects) {
+		if (!section.enabled)
+			return;
+		for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
+			draw_widget(painter, section.widgets[index], slot_rects[index], right_aligned);
+	};
+	draw_section(regions_.top, top);
+	draw_section(regions_.left, left);
+	draw_section(regions_.right, right);
 }
 
 } // namespace sources
