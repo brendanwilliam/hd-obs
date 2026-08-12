@@ -53,11 +53,12 @@ public:
 	{
 		root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/league-game-reports";
 		QDir().mkpath(root);
-		device_poll_timer.setInterval(1000);
-		QObject::connect(&device_poll_timer, &QTimer::timeout, owner, [owner] { owner->poll_device_code(); });
-		upload_timer.setInterval(1000);
-		QObject::connect(&upload_timer, &QTimer::timeout, owner, [owner] { owner->tick(); });
-		upload_timer.start();
+		device_poll_timer = new QTimer(owner);
+		upload_timer = new QTimer(owner);
+		device_poll_timer->setInterval(1000);
+		QObject::connect(device_poll_timer, &QTimer::timeout, owner, [owner] { owner->poll_device_code(); });
+		upload_timer->setInterval(1000);
+		QObject::connect(upload_timer, &QTimer::timeout, owner, [owner] { owner->tick(); });
 	}
 	online_reports *owner;
 	QNetworkAccessManager network;
@@ -67,7 +68,7 @@ public:
 	QString root, state{"Not linked. Online reports are disabled."}, device_code, token;
 	QUrl service_url{ONLINE_REPORTS_SERVICE_URL};
 	QDateTime device_code_expires_at, next_device_poll;
-	QTimer device_poll_timer, upload_timer;
+	QTimer *device_poll_timer, *upload_timer;
 	bool auth_required{}, upload_in_flight{}, upload_enabled{true}, shutting_down{};
 };
 
@@ -78,22 +79,20 @@ online_reports::online_reports(QObject *parent) : QObject(parent), implementatio
 	implementation_->token = credential();
 }
 
-online_reports::~online_reports()
-{
-	delete implementation_;
-}
+void online_reports::start() { implementation_->upload_timer->start(); }
+
+online_reports::~online_reports() { delete implementation_; }
 
 void online_reports::shutdown()
 {
 	if (!implementation_ || implementation_->shutting_down)
 		return;
 	implementation_->shutting_down = true;
-	implementation_->device_poll_timer.stop();
-	implementation_->upload_timer.stop();
+	implementation_->device_poll_timer->stop();
+	implementation_->upload_timer->stop();
 	for (auto *reply : implementation_->network.findChildren<QNetworkReply *>()) {
 		QObject::disconnect(reply, nullptr, this, nullptr);
 		reply->abort();
-		reply->deleteLater();
 	}
 }
 
@@ -296,7 +295,7 @@ void online_reports::begin_link()
 				QDateTime::currentDateTimeUtc().addSecs(value["interval"].toInt(5));
 			implementation_->device_code_expires_at =
 				QDateTime::currentDateTimeUtc().addSecs(value["expires_in"].toInt(600));
-			implementation_->device_poll_timer.start();
+			implementation_->device_poll_timer->start();
 			QUrlQuery query(verification);
 			query.addQueryItem("code", code);
 			verification.setQuery(query);
@@ -317,7 +316,7 @@ void online_reports::poll_device_code()
 	const QDateTime now = QDateTime::currentDateTimeUtc();
 	if (implementation_->device_code_expires_at.isValid() && implementation_->device_code_expires_at <= now) {
 		implementation_->device_code.clear();
-		implementation_->device_poll_timer.stop();
+		implementation_->device_poll_timer->stop();
 		implementation_->state = "Link request expired. Start linking again.";
 		return;
 	}
@@ -334,7 +333,7 @@ void online_reports::poll_device_code()
 			implementation_->token = token;
 			implementation_->device_code.clear();
 			implementation_->device_code_expires_at = {};
-			implementation_->device_poll_timer.stop();
+			implementation_->device_poll_timer->stop();
 			implementation_->auth_required = false;
 			// A relink can point this device at a different account, so retain the
 			// queue and allow each queued payload to be uploaded to the new account.
@@ -363,7 +362,7 @@ void online_reports::unlink()
 	implementation_->token.clear();
 	implementation_->device_code.clear();
 	implementation_->device_code_expires_at = {};
-	implementation_->device_poll_timer.stop();
+	implementation_->device_poll_timer->stop();
 	implementation_->auth_required = false;
 	implementation_->state = "Unlinked. Queued reports are retained locally.";
 }
@@ -379,7 +378,12 @@ void online_reports::retry()
 			implementation_->sessions->update_upload(entry.payload["report_id"].toString(),
 								 upload_state::pending, entry.retry_at, entry.attempts);
 	}
+	implementation_->state = implementation_->queue.isEmpty()   ? "No queued reports to retry."
+				 : !implementation_->upload_enabled ? "Uploads are disabled."
+				 : !linked()                        ? "Link Hands Diff before retrying queued reports."
+								    : "Retrying queued reports.";
 	save_queue();
+	tick();
 }
 
 QString online_reports::status() const

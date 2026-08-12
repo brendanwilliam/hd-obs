@@ -87,7 +87,7 @@ class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
 		       int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
-		       const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter);
+		       const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter, int mouse_dpi);
 	void set_gameplay_actions(const QHash<QString, QString> &actions);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
@@ -159,6 +159,7 @@ private:
 	uint64_t bucket_start_{}, total_clicks_{}, total_key_presses_{};
 	double distance_{};
 	int window_{60};
+	int mouse_dpi_{800};
 };
 
 } // namespace sources

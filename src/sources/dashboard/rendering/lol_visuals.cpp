@@ -86,7 +86,8 @@ void lol_dashboard_visuals::set_gameplay_actions(const QHash<QString, QString> &
 
 void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
 				      int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
-				      const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter)
+				      const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter,
+				      int mouse_dpi)
 {
 	theme_ = theme;
 	regions_ = regions;
@@ -95,6 +96,7 @@ void lol_dashboard_visuals::configure(const lol_dashboard_theme &theme, const lo
 	window_ = std::clamp(rolling_window_seconds, 1, 60);
 	game_frame_ = game_frame;
 	pointer_bounds_ = lol_dashboard_heatmap_content_bounds(pointer_bounds, game_frame_, style_);
+	mouse_dpi_ = std::clamp(mouse_dpi, 100, 32000);
 }
 
 bool lol_dashboard_visuals::accepts_key(const QString &label) const
@@ -341,7 +343,7 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 }
 QString lol_dashboard_visuals::distance_label() const
 {
-	double value = distance_ / 2800.0 * 2.54;
+	double value = distance_ / mouse_dpi_ * 2.54;
 	QString unit = "cm";
 	int decimals = value < 10.0 ? 2 : 1;
 	if (value >= 100000.0) {
@@ -513,14 +515,15 @@ void lol_dashboard_visuals::draw_intensity(QPainter &painter, const QRect &bound
 		const int text_gap = std::min(style_.within_element_gap, 4);
 		std::vector<double> values;
 		for (const auto &sample : session_samples_)
-			values.push_back(metric == mouse_velocity_metric ? sample[mouse_velocity_metric] / 2800.0 * 2.54
-									 : sample[metric] * 60.0);
+			values.push_back(metric == mouse_velocity_metric
+						 ? sample[mouse_velocity_metric] / mouse_dpi_ * 2.54
+						 : sample[metric] * 60.0);
 		std::array<double, 4> total = current_;
 		for (const auto &sample : samples_) {
 			total[metric] += sample[metric];
 		}
 		const double current = metric == mouse_velocity_metric
-					       ? total[mouse_velocity_metric] / window_ / 2800.0 * 2.54
+					       ? total[mouse_velocity_metric] / window_ / mouse_dpi_ * 2.54
 					       : total[metric] * 60.0 / window_;
 		values.push_back(current);
 		std::sort(values.begin(), values.end());
