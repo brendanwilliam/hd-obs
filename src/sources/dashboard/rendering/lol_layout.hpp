@@ -6,6 +6,8 @@
 
 namespace sources {
 
+enum class lol_dashboard_alignment { left, center, right };
+
 struct lol_dashboard_rect {
 	int x_{};
 	int y_{};
@@ -75,6 +77,8 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_
 							    const std::array<int, 4> &heights, int count, int gap = 10);
 
 lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect);
+lol_dashboard_rect lol_dashboard_aspect_fit_aligned(const lol_dashboard_rect &bounds, double aspect,
+						    lol_dashboard_alignment alignment);
 lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect);
 
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,

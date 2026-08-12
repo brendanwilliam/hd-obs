@@ -287,7 +287,9 @@ obs_properties_t *properties(void *data)
 				obs_property_list_add_int(
 					slot, obs_module_text("LoLPerformanceDashboard.Widget.MouseActivity"), 2);
 				obs_property_list_add_int(slot,
-							  obs_module_text("LoLPerformanceDashboard.Widget.Totals"), 3);
+						  obs_module_text("LoLPerformanceDashboard.Widget.Totals"), 3);
+				obs_property_list_add_int(
+					slot, obs_module_text("LoLPerformanceDashboard.Widget.Distance"), 4);
 				obs_property_list_add_int(
 					slot, obs_module_text("LoLPerformanceDashboard.Widget.LiveKeys"), 5);
 				obs_property_list_add_int(slot,

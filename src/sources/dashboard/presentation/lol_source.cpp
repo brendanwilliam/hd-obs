@@ -177,8 +177,8 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, regions_, rolling_window_seconds, frame_,
-				   lol_dashboard_qrect(panels.heatmap), style_, trail_filter_, report_.mouse_dpi());
+		visuals_.configure(theme_, regions_, rolling_window_seconds, frame_, style_, trail_filter_,
+				   report_.mouse_dpi());
 		visuals_.set_gameplay_actions(gameplay_actions_);
 		if (!analysis_enabled_) {
 			visuals_.clear_live_keys();

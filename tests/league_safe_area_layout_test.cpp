@@ -85,6 +85,8 @@ int main()
 	auto widescreen_heatmap = sources::lol_dashboard_aspect_fit({0, 0, 112, 28}, 16.0 / 9.0);
 	auto ultrawide_heatmap = sources::lol_dashboard_aspect_fit({0, 0, 112, 28}, 21.0 / 9.0);
 	auto left_anchored_widescreen_heatmap = sources::lol_dashboard_aspect_fit_left({0, 0, 112, 28}, 16.0 / 9.0);
+	auto right_anchored_widescreen_heatmap = sources::lol_dashboard_aspect_fit_aligned(
+		{0, 0, 112, 28}, 16.0 / 9.0, sources::lol_dashboard_alignment::right);
 	auto horizontal_slots = sources::lol_dashboard_split_slots({0, 0, 100, 20}, 4, true, 4);
 	auto vertical_slots = sources::lol_dashboard_split_slots({0, 0, 20, 100}, 3, false, 5);
 	auto weighted_slots = sources::lol_dashboard_split_weighted_slots({0, 0, 100, 20}, {3, 1, 1, 1}, 3, true, 4);
@@ -102,6 +104,8 @@ int main()
 	    !require(widescreen_heatmap.width() == 50) || !require(widescreen_heatmap.height() == 28) ||
 	    !require(ultrawide_heatmap.width() == 65) || !require(ultrawide_heatmap.height() == 28) ||
 	    !require(left_anchored_widescreen_heatmap.left() == 0) || !require(horizontal_slots[0].width() == 22) ||
+	    !require(right_anchored_widescreen_heatmap.right() == 111) ||
+	    !require(right_anchored_widescreen_heatmap.width() == left_anchored_widescreen_heatmap.width()) ||
 	    !require(horizontal_slots[3].right() == 99) || !require(vertical_slots[0].height() == 30) ||
 	    !require(vertical_slots[2].bottom() == 99) || !require(weighted_slots[0].width() == 55) ||
 	    !require(weighted_slots[2].right() == 99) || !require(stacked_slots[0].height() == 10) ||

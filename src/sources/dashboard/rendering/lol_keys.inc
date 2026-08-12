@@ -25,17 +25,16 @@ void lol_dashboard_visuals::draw_live_keys(QPainter &painter, const QRect &bound
 	const int key_width = std::max(1, (content.width() - (visible - 1) * gap) / 4);
 	const QRect active_row(content.left(), active_top + active_title_height + style_.label_spacing, content.width(),
 			       active_row_height);
+	const int row_width = visible * key_width + std::max(0, visible - 1) * gap;
+	const int row_left = alignment == lol_dashboard_alignment::right
+				 ? active_row.right() - row_width + 1
+				 : alignment == lol_dashboard_alignment::center
+				       ? active_row.left() + (active_row.width() - row_width) / 2
+				       : active_row.left();
 	const uint64_t now = os_gettime_ns();
 	for (int index = 0; index < visible; ++index) {
 		const auto &key = active_keys_[active_keys_.size() - visible + index];
-		const int x =
-			alignment == lol_dashboard_alignment::right
-				? active_row.right() - (visible - index) * key_width - (visible - index - 1) * gap + 1
-			: alignment == lol_dashboard_alignment::center
-				? active_row.left() +
-					  (active_row.width() - (visible * key_width + (visible - 1) * gap)) / 2 +
-					  index * (key_width + gap)
-				: active_row.left() + index * (key_width + gap);
+		const int x = row_left + index * (key_width + gap);
 		QColor fill = held_.count(key.code) && held_.at(key.code) ? theme_.active : theme_.inactive;
 		const qreal elapsed =
 			key.fade_until
