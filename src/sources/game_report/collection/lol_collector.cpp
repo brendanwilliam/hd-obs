@@ -295,10 +295,10 @@ private:
 			return "missing_riot_id";
 		if (context.map_number != 11)
 			return "unsupported_map";
-		if (context.game_mode != "CLASSIC")
+		if (context.game_mode != "CLASSIC" && context.game_mode != "PRACTICETOOL")
 			return "unsupported_mode";
-		if (context.queue_id != 400 && context.queue_id != 420 && context.queue_id != 430 &&
-		    context.queue_id != 440 && context.queue_id != 490)
+		if (context.game_mode == "CLASSIC" && context.queue_id != 400 && context.queue_id != 420 &&
+		    context.queue_id != 430 && context.queue_id != 440 && context.queue_id != 490)
 			return "unsupported_queue";
 		return "invalid_game_time";
 	}

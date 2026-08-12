@@ -314,6 +314,8 @@ obs_properties_t *properties(void *data)
 	}
 	if (data)
 		static_cast<dashboard_source *>(data)->report_manager().add_properties(properties);
+	else
+		lol_report_manager::add_active_properties(properties);
 	auto *trail = obs_properties_add_group(hud_properties, "lol_dashboard.trail",
 					       obs_module_text("LoLPerformanceDashboard.ClickTrail"), OBS_GROUP_NORMAL,
 					       obs_properties_create());

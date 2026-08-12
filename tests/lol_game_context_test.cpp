@@ -27,12 +27,13 @@ int main()
 		mutated["gameData"] = game;
 		assert(!supported_game(parse_game_context(mutated)));
 	}
+	QJsonObject practice_tool = supported;
+	practice_tool["gameData"] = QJsonObject{{"mapNumber", 11},
+						{"gameMode", "PRACTICETOOL"},
+						{"gameQueueConfigId", 0},
+						{"gameTime", 0.0}};
+	assert(supported_game(parse_game_context(practice_tool)));
 	QJsonObject unsupported = supported;
-	unsupported["gameData"] = QJsonObject{{"mapNumber", 11},
-					      {"gameMode", "PRACTICETOOL"},
-					      {"gameQueueConfigId", 420},
-					      {"gameTime", 0.0}};
-	assert(!supported_game(parse_game_context(unsupported)));
 	unsupported["gameData"] =
 		QJsonObject{{"mapNumber", 11}, {"gameMode", "CLASSIC"}, {"gameQueueConfigId", 999}, {"gameTime", 0.0}};
 	assert(!supported_game(parse_game_context(unsupported)));

@@ -18,6 +18,7 @@ public:
 	bool unlink_online_reports();
 	bool retry_online_reports();
 	void add_properties(obs_properties *properties);
+	static void add_active_properties(obs_properties *properties);
 	static void defaults(obs_data *settings);
 
 private:

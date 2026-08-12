@@ -80,7 +80,7 @@ QJsonObject to_json(const report &v)
 		{"capture_policy_version", 1},
 		{"capture", QJsonObject{{"started_at_utc", started.toUTC().toString(Qt::ISODateWithMs)},
 					{"duration_ms", duration_ms},
-					{"game_mode", "CLASSIC"},
+					{"game_mode", v.game_mode},
 					{"map_number", v.map_number},
 					{"riot_id", QJsonObject{{"game_name", game_name}, {"tag_line", tag_line}}},
 					{"frontmost_capture", v.frontmost_capture},
