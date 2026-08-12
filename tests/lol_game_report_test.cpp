@@ -31,5 +31,7 @@ int main()
 	assert(input["summary"].toObject()["peak_apm"].toDouble() == 40.0);
 	assert(input["left_clicks"].toInt() == 3);
 	assert(input["gameplay_key_actions"].toInt() == 2);
+	value.complete = false;
+	assert(!to_json(value)["capture"].toObject()["complete"].toBool());
 	return 0;
 }

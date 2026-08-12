@@ -84,7 +84,7 @@ QJsonObject to_json(const report &v)
 					{"map_number", v.map_number},
 					{"riot_id", QJsonObject{{"game_name", game_name}, {"tag_line", tag_line}}},
 					{"frontmost_capture", v.frontmost_capture},
-					{"complete", v.complete || duration_ms > 0},
+					{"complete", v.complete},
 					{"event_detail_truncated", v.event_detail_truncated}}},
 		{"input",
 		 QJsonObject{{"left_clicks", summary.left_clicks},

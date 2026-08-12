@@ -200,6 +200,7 @@ void lol_report_manager::add_properties(obs_properties *properties)
 {
 	auto *props = reinterpret_cast<obs_properties_t *>(properties);
 	auto *online = obs_properties_create();
+	obs_properties_add_bool(online, analysis_enabled_key, obs_module_text("LoLGameReport.AnalysisEnabled"));
 	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
 	obs_properties_add_int(online, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
 	const QString status =

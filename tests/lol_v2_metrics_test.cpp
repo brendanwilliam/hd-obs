@@ -23,5 +23,10 @@ int main()
 	const metric_summary summary = metrics.summary();
 	assert(summary.left_clicks == 1 && summary.right_clicks == 1 && summary.gameplay_key_actions == 1);
 	assert(summary.peak_apm == 60.0 && summary.median_apm == 40.0);
+	metrics.reset(120);
+	metrics.record_action(121.0, gameplay_input::left_click);
+	metrics.evaluate_through(122);
+	assert(metrics.intensity().size() == 3);
+	assert(metrics.intensity().first().second == 120 && metrics.intensity().last().second == 122);
 	return 0;
 }

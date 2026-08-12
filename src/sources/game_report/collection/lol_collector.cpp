@@ -133,9 +133,21 @@ private:
 	}
 	void process(const game_context &context)
 	{
-		if (!enabled_)
+		if (!enabled_) {
+			diagnostics_.write("collector", "game_ignored",
+					   {{"reason", "analysis_disabled"}, {"active", active_}});
 			return;
+		}
 		if (!supported_game(context)) {
+			diagnostics_.write("collector", "game_ignored",
+					   {{"reason", unsupported_reason(context)},
+					    {"active", active_},
+					    {"game_end", context.game_end},
+					    {"game_time", context.game_time},
+					    {"map", context.map_number},
+					    {"queue", context.queue_id},
+					    {"mode", context.game_mode},
+					    {"invalid_polls", invalid_polls_}});
 			if (active_ && (context.game_end || ++invalid_polls_ >= 3))
 				finalize(context.game_end ? "game_end" : "invalid_game_state");
 			return;
@@ -147,8 +159,12 @@ private:
 		}
 		invalid_polls_ = 0;
 		if (!active_) {
-			if (context.game_time > 1.0)
+			if (context.game_end) {
+				diagnostics_.write("collector", "game_ignored",
+						   {{"reason", "game_already_ended"},
+						    {"game_time", context.game_time}});
 				return;
+			}
 			begin(context);
 		}
 		last_game_seconds_ = context.game_time;
@@ -161,21 +177,26 @@ private:
 	{
 		report_ = {};
 		report_.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-		report_.observed_started_at = QDateTime::currentDateTimeUtc();
+		report_.observed_started_at =
+			QDateTime::currentDateTimeUtc().addMSecs(-qRound64(context.game_time * 1000.0));
 		report_.riot_id_game_name = context.riot_id_game_name;
 		report_.riot_id_tag_line = context.riot_id_tag_line;
 		report_.champion = context.champion;
 		report_.game_mode = context.game_mode;
 		report_.map_number = context.map_number;
 		report_.map = "Map" + QString::number(context.map_number);
-		metrics_.reset();
+		report_.complete = context.game_time <= 1.0;
+		metrics_.reset(int(std::floor(context.game_time)));
 		pressed_modifiers_.clear();
 		last_game_seconds_ = context.game_time;
 		anchor_monotonic_ns_ = os_gettime_ns();
 		active_ = true;
 		state_ = collection_state::recording;
 		diagnostics_.write("collector", "report_started",
-				   {{"map", context.map_number}, {"queue", context.queue_id}});
+				   {{"map", context.map_number},
+				    {"queue", context.queue_id},
+				    {"game_time", context.game_time},
+				    {"complete", report_.complete}});
 	}
 	double event_game_seconds(uint64_t time_ns) const
 	{
@@ -255,18 +276,31 @@ private:
 		metrics_.evaluate_through(int(std::floor(last_game_seconds_)));
 		report_.duration_seconds = std::max(1, int(std::ceil(last_game_seconds_)));
 		report_.completed_at = QDateTime::currentDateTimeUtc();
-		report_.complete = true;
 		report_.v2_intensity = metrics_.intensity();
 		report_.v2_summary = metrics_.summary();
 		diagnostics_.write("collector", "report_finalized",
 				   {{"reason", reason},
 				    {"duration_seconds", report_.duration_seconds},
-				    {"event_count", report_.local_gameplay_events.size()}});
+				    {"event_count", report_.local_gameplay_events.size()},
+				    {"complete", report_.complete}});
 		if (submission_callback_)
 			submission_callback_(report_);
 		active_ = false;
 		invalid_polls_ = 0;
 		state_ = collection_state::empty;
+	}
+	QString unsupported_reason(const game_context &context) const
+	{
+		if (context.riot_id_game_name.isEmpty() || context.riot_id_tag_line.isEmpty())
+			return "missing_riot_id";
+		if (context.map_number != 11)
+			return "unsupported_map";
+		if (context.game_mode != "CLASSIC")
+			return "unsupported_mode";
+		if (context.queue_id != 400 && context.queue_id != 420 && context.queue_id != 430 &&
+		    context.queue_id != 440 && context.queue_id != 490)
+			return "unsupported_queue";
+		return "invalid_game_time";
 	}
 
 	std::atomic<collection_state> &state_;

@@ -4,14 +4,14 @@
 #include <cmath>
 
 namespace sources::lol_game_report {
-void v2_metrics::reset()
+void v2_metrics::reset(int first_game_second)
 {
 	actions_.clear();
 	motion_.clear();
 	intensity_.clear();
 	has_previous_point_ = false;
 	left_clicks_ = right_clicks_ = gameplay_key_actions_ = 0;
-	last_second_ = -1;
+	last_second_ = std::max(-1, first_game_second - 1);
 }
 
 void v2_metrics::record_action(double game_seconds, gameplay_input input)

@@ -25,7 +25,7 @@ struct metric_summary {
 
 class v2_metrics {
 public:
-	void reset();
+	void reset(int first_game_second = 0);
 	void record_action(double game_seconds, gameplay_input input);
 	void record_motion(double game_seconds, QPointF point, bool in_game_frame);
 	void evaluate_through(int game_second);
