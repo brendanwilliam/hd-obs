@@ -48,6 +48,7 @@ else()
     "https://hands-diff.vercel.app"
     CACHE STRING
     "Base URL for the Hands Diff report service"
+    FORCE
   )
 endif()
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ONLINE_REPORTS_SERVICE_URL="${ONLINE_REPORTS_SERVICE_URL}")

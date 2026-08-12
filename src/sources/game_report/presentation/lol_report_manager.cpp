@@ -29,6 +29,10 @@ public:
 	implementation() : online(std::make_unique<lol_game_report::online_reports>())
 	{
 		const QPointer<lol_game_report::online_reports> online_reports = online.get();
+		online_reports->moveToThread(&online_thread);
+		online_thread.start();
+		QMetaObject::invokeMethod(
+			online_reports, [online_reports] { online_reports->start(); }, Qt::QueuedConnection);
 		collector.set_submission_callback([online_reports](const lol_game_report::report &report) {
 			if (!online_reports)
 				return;
@@ -55,14 +59,15 @@ public:
 			return;
 		auto dispose = [reports] {
 			reports->shutdown();
-			reports->deleteLater();
+			delete reports;
 		};
 		if (reports->thread() == QThread::currentThread()) {
 			dispose();
-			return;
-		}
-		if (!QMetaObject::invokeMethod(reports, dispose, Qt::BlockingQueuedConnection))
+		} else if (!QMetaObject::invokeMethod(reports, dispose, Qt::BlockingQueuedConnection)) {
 			blog(LOG_WARNING, "[input-activity] unable to dispose online reports on its Qt thread");
+		}
+		online_thread.quit();
+		online_thread.wait();
 	}
 	void update(obs_data_t *settings)
 	{
@@ -70,7 +75,15 @@ public:
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		analysis_enabled = obs_data_get_bool(settings, analysis_enabled_key);
 		collector.set_enabled(analysis_enabled);
-		online->set_upload_enabled(obs_data_get_bool(settings, upload_enabled_key));
+		const bool upload_enabled = obs_data_get_bool(settings, upload_enabled_key);
+		const QPointer<lol_game_report::online_reports> online_reports = online.get();
+		QMetaObject::invokeMethod(
+			online_reports,
+			[online_reports, upload_enabled] {
+				if (online_reports)
+					online_reports->set_upload_enabled(upload_enabled);
+			},
+			Qt::QueuedConnection);
 		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
 		const QString next_input_path = game_config.dir().filePath("input.ini");
 		if (input_path != next_input_path)
@@ -106,6 +119,7 @@ public:
 		input_champion_ = champion;
 	}
 	lol_game_report::collector collector;
+	QThread online_thread;
 	std::unique_ptr<lol_game_report::online_reports> online;
 	bool development_logs{};
 	bool analysis_enabled{};
