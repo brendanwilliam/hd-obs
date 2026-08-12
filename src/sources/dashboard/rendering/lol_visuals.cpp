@@ -245,6 +245,7 @@ int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, 
 	case lol_dashboard_regions::widget::intensity:
 		return vertical_padding + 160;
 	case lol_dashboard_regions::widget::mouse_activity:
+		return vertical_padding + 160;
 	case lol_dashboard_regions::widget::none:
 		return 0;
 	}

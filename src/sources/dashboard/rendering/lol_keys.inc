@@ -101,6 +101,33 @@ void lol_dashboard_visuals::draw_top_keys(QPainter &painter, const QRect &bounds
 		const int y = chart.top() + index * (row_height + bar_vertical_spacing);
 		const int text_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
 		const int within_element_gap = style_.within_element_gap;
+		if (alignment == lol_dashboard_alignment::left) {
+			painter.setFont(dashboard_font(style_.numbers_secondary));
+			const QFontMetrics metrics(painter.font());
+			const QString label = dashboard_text(keys[index].label, style_.numbers_secondary);
+			const QString count =
+				dashboard_text(QString::number(keys[index].count), style_.numbers_secondary);
+			const int count_width = metrics.horizontalAdvance(count) + 2;
+			const int label_width = std::max(1, chart.width() / 4);
+			const QRect label_rect(chart.left(), y, label_width, text_height);
+			const QRect count_rect(chart.right() - count_width + 1, y, count_width, text_height);
+			const QRect bar_bounds(
+				label_rect.right() + within_element_gap + 1, y + text_height + 2,
+				std::max(1, count_rect.left() - label_rect.right() - 2 * within_element_gap - 1), 12);
+			const QRect bar_rect(bar_bounds.left(), bar_bounds.top(),
+					     std::max(1, int(bar_bounds.width() * keys[index].count / max)),
+					     bar_bounds.height());
+			const auto pressed = held_.find(keys[index].code);
+			painter.setBrush(pressed != held_.end() && pressed->second ? theme_.active : theme_.inactive);
+			painter.setPen(Qt::NoPen);
+			painter.drawRoundedRect(bar_rect, 3, 3);
+			painter.setPen(Qt::white);
+			lol_dashboard_draw_shadowed_text(painter, label_rect, Qt::AlignLeft | Qt::AlignVCenter,
+							 metrics.elidedText(label, Qt::ElideRight, label_rect.width()));
+			lol_dashboard_draw_shadowed_text(painter, count_rect, Qt::AlignRight | Qt::AlignVCenter,
+							 metrics.elidedText(count, Qt::ElideLeft, count_rect.width()));
+			continue;
+		}
 		const int bar = std::max(1, int(chart.width() * keys[index].count / max));
 		const int bar_left = alignment == lol_dashboard_alignment::right ? chart.right() - bar + 1
 				     : alignment == lol_dashboard_alignment::center
