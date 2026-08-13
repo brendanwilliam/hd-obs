@@ -328,6 +328,11 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 	} else if (event.type == EVENT_MOUSE_RELEASED) {
 		release_pointer_indicator(event.code, event.time_ns);
 	}
+	if (bound_gameplay_key && pointer_) {
+		trail_.push_back({*pointer_, event.time_ns, 0, lol_dashboard_key_label(event.code).toLower()});
+		if (trail_.size() > 20)
+			trail_.pop_front();
+	}
 	if (bound_gameplay_key && trail_filter_.key_markers && game_frame_.contains(event.x, event.y)) {
 		const QString label = lol_dashboard_key_label(event.code);
 		if (accepts_key(label)) {
