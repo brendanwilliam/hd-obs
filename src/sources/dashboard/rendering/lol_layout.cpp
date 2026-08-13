@@ -139,6 +139,38 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_
 	return result;
 }
 
+std::array<lol_dashboard_rect, 4> lol_dashboard_left_widget_slots(const lol_dashboard_rect &heatmap,
+								  const lol_dashboard_rect &summary,
+								  const std::array<int, 4> &heights,
+								  const std::array<bool, 4> &mouse_activity, int count,
+								  int gap)
+{
+	count = std::clamp(count, 0, 4);
+	int mouse_slot = -1;
+	for (int index = 0; index < count; ++index)
+		if (mouse_activity[index]) {
+			mouse_slot = index;
+			break;
+		}
+	if (mouse_slot < 0)
+		return lol_dashboard_stack_slots(heatmap, heights, count, gap);
+
+	std::array<lol_dashboard_rect, 4> result{};
+	result[mouse_slot] = heatmap;
+	std::array<int, 4> summary_heights{};
+	std::array<int, 4> summary_indexes{};
+	int summary_count = 0;
+	for (int index = 0; index < count; ++index)
+		if (index != mouse_slot) {
+			summary_heights[summary_count] = heights[index];
+			summary_indexes[summary_count++] = index;
+		}
+	const auto summary_slots = lol_dashboard_stack_slots(summary, summary_heights, summary_count, gap);
+	for (int index = 0; index < summary_count; ++index)
+		result[summary_indexes[index]] = summary_slots[index];
+	return result;
+}
+
 lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::model &layout,
 						    const lol_dashboard_camera_layout &camera,
 						    const lol_dashboard_image_layout &minimap_cover, int hud_padding)

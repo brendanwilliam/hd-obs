@@ -243,12 +243,18 @@ public:
 										    regions_.top.count, true,
 										    style_.element_x_gap);
 				std::array<QRect, 4> top_rects{}, left_rects{}, right_rects{};
+				std::array<bool, 4> left_mouse_activity{};
+				for (int index = 0; index < std::clamp(regions_.left.count, 0, 4); ++index)
+					left_mouse_activity[index] = regions_.left.widgets[index] ==
+								     lol_dashboard_regions::widget::mouse_activity;
 				const auto side_slots = [&](const lol_dashboard_regions::section &section,
 							    const lol_dashboard_rect &bounds) {
 					return lol_dashboard_stack_slots(bounds, heights_for(section, bounds),
 									 section.count, style_.element_y_gap);
 				};
-				const auto left = side_slots(regions_.left, panels.heatmap);
+				const auto left = lol_dashboard_left_widget_slots(
+					panels.heatmap, panels.summary, heights_for(regions_.left, panels.heatmap),
+					left_mouse_activity, regions_.left.count, style_.element_y_gap);
 				const auto right = side_slots(regions_.right, panels.keys);
 				for (int index = 0; index < 4; ++index) {
 					top_rects[index] = lol_dashboard_qrect(top[index]);
