@@ -33,5 +33,13 @@ int main()
 	const auto updated = store.load();
 	assert(std::any_of(updated.cbegin(), updated.cend(),
 			   [](const retained_session &session) { return session.upload == upload_state::confirmed; }));
+	retained_session checkpoint;
+	checkpoint.value = updated.first().value;
+	checkpoint.value.complete = false;
+	assert(store.save_checkpoint(checkpoint));
+	const auto restored = store.load_checkpoint();
+	assert(restored && restored->value.id == checkpoint.value.id && !restored->value.complete);
+	assert(store.clear_checkpoint());
+	assert(!store.load_checkpoint());
 	return 0;
 }
