@@ -91,12 +91,22 @@ int main()
 	auto vertical_slots = sources::lol_dashboard_split_slots({0, 0, 20, 100}, 3, false, 5);
 	auto weighted_slots = sources::lol_dashboard_split_weighted_slots({0, 0, 100, 20}, {3, 1, 1, 1}, 3, true, 4);
 	auto stacked_slots = sources::lol_dashboard_stack_slots({0, 0, 20, 100}, {10, 20, 30, 40}, 3, 5);
+	const sources::lol_dashboard_rect heatmap_bounds{0, 0, 40, 40};
+	const sources::lol_dashboard_rect summary_bounds{50, 0, 20, 100};
+	const auto default_left_slots = sources::lol_dashboard_left_widget_slots(
+		heatmap_bounds, summary_bounds, summary_bounds, {40, 20, 30, 0}, {true, false, false, false}, 3, 5);
+	const auto reordered_left_slots = sources::lol_dashboard_left_widget_slots(
+		heatmap_bounds, summary_bounds, summary_bounds, {20, 30, 40, 0}, {false, false, true, false}, 3, 5);
+	const auto map_only_left_slots = sources::lol_dashboard_left_widget_slots(
+		heatmap_bounds, summary_bounds, summary_bounds, {10, 15, 20, 0}, {false, false, false, false}, 3, 5);
 	if (!require(!default_panels.camera_visible) || !require(edge_panels.header.top() == 0) ||
 	    !require(edge_panels.keys.right() == min_model.game.width - 1) ||
 	    !require(edge_panels.heatmap.left() == 0) || !require(edge_panels.summary.left() >= 0) ||
 	    !require(default_panels.heatmap.width() == default_panels.minimap_cover_mask.width()) ||
 	    !require(max_minimap_panels.heatmap.width() == max_minimap_panels.minimap_cover_mask.width()) ||
 	    !require(default_panels.heatmap.bottom() < min_model.game.height) ||
+	    !require(default_panels.left_stack.height() > default_panels.summary.height()) ||
+	    !require(default_panels.left_stack.bottom() < default_panels.summary.top()) ||
 	    !require(default_panels.minimap_cover_mask.right() == min_model.game.width - 1) ||
 	    !require(default_panels.minimap_cover_mask.bottom() == min_model.game.height - 1) ||
 	    !require(max_minimap_panels.minimap_cover_mask.width() > default_panels.minimap_cover_mask.width()) ||
@@ -110,6 +120,18 @@ int main()
 	    !require(vertical_slots[2].bottom() == 99) || !require(weighted_slots[0].width() == 55) ||
 	    !require(weighted_slots[2].right() == 99) || !require(stacked_slots[0].height() == 10) ||
 	    !require(stacked_slots[1].top() == 15) || !require(stacked_slots[2].bottom() == 69) ||
+	    !require(default_left_slots[0].left() == heatmap_bounds.left()) ||
+	    !require(default_left_slots[0].height() == heatmap_bounds.height()) ||
+	    !require(default_left_slots[1].left() == summary_bounds.left()) ||
+	    !require(default_left_slots[2].top() > default_left_slots[1].bottom()) ||
+	    !require(reordered_left_slots[0].left() == summary_bounds.left()) ||
+	    !require(reordered_left_slots[1].left() == summary_bounds.left()) ||
+	    !require(reordered_left_slots[2].left() == heatmap_bounds.left()) ||
+	    !require(!reordered_left_slots[0].isEmpty()) || !require(!reordered_left_slots[1].isEmpty()) ||
+	    !require(!reordered_left_slots[2].isEmpty()) ||
+	    !require(map_only_left_slots[0].left() == summary_bounds.left()) ||
+	    !require(map_only_left_slots[1].top() > map_only_left_slots[0].bottom()) ||
+	    !require(map_only_left_slots[2].top() > map_only_left_slots[1].bottom()) ||
 	    !require(sources::lol_dashboard_split_slots({}, 2, true)[0].isEmpty()))
 		return 1;
 	sources::lol_dashboard_camera_layout camera{true, false, 16.0 / 9.0, 100, 100, 100, 0, 0};
@@ -121,6 +143,10 @@ int main()
 	    !require(camera_panels.heatmap.top() >= camera_panels.header.bottom()) ||
 	    !require(camera_panels.heatmap.bottom() < camera_panels.camera_mask.top()) ||
 	    !require(camera_panels.summary.left() == camera_panels.heatmap.left()) ||
+	    !require(camera_panels.summary.bottom() < camera_panels.camera_mask.top()) ||
+	    !require(camera_panels.left_stack.left() == camera_panels.summary.left()) ||
+	    !require(camera_panels.left_stack.top() == camera_panels.heatmap.top()) ||
+	    !require(camera_panels.left_stack.bottom() < camera_panels.camera_mask.top()) ||
 	    !require(camera_panels.heatmap.width() == camera_panels.minimap_cover_mask.width()))
 		return 1;
 	const int summary_text_inset = 40;

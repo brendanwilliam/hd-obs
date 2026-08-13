@@ -17,7 +17,12 @@ QString action_for(const QString &event)
 						    {"evtUseVisionItem", "trinket"},
 						    {"evtCastRoleBound", "role_bound"},
 						    {"evtUseItem7", "recall"},
-						    {"evtOpenShop", "shop"}};
+						    {"evtOpenShop", "shop"},
+						    {"evtPlayerAttackMove", "attack_move"},
+						    {"evtPlayerAttackMoveClick", "attack_move_click"},
+						    {"evtPlayerAttackOnlyClick", "attack_only_click"},
+						    {"evtPlayerHoldPosition", "stop"},
+						    {"evtPlayerStopPosition", "stop"}};
 	if (direct.contains(event))
 		return direct.value(event);
 	const QRegularExpression casts(

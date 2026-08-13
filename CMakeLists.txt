@@ -45,7 +45,7 @@ if(DEFINED ENV{WEBAPP_URL} AND NOT "$ENV{WEBAPP_URL}" STREQUAL "")
 else()
   set(
     ONLINE_REPORTS_SERVICE_URL
-    "https://hands-diff.vercel.app"
+    "http://localhost:3000"
     CACHE STRING
     "Base URL for the Hands Diff report service"
     FORCE

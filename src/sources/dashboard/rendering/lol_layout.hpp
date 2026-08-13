@@ -61,7 +61,8 @@ struct lol_dashboard_image_layout {
 };
 
 struct lol_dashboard_panels {
-	lol_dashboard_rect header, heatmap, summary, keys, camera_mask, camera, minimap_cover_mask, minimap_cover;
+	lol_dashboard_rect header, heatmap, summary, left_stack, keys, camera_mask, camera, minimap_cover_mask,
+		minimap_cover;
 	bool camera_visible{};
 };
 
@@ -75,6 +76,13 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_split_weighted_slots(const lol_d
 								     bool horizontal, int gap = 10);
 std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_rect &bounds,
 							    const std::array<int, 4> &heights, int count, int gap = 10);
+// The activity map occupies its dedicated region. Other left-HUD widgets use
+// the available side stack without changing their configured slots.
+std::array<lol_dashboard_rect, 4>
+lol_dashboard_left_widget_slots(const lol_dashboard_rect &heatmap, const lol_dashboard_rect &stack_with_mouse_activity,
+				const lol_dashboard_rect &stack_without_mouse_activity,
+				const std::array<int, 4> &heights, const std::array<bool, 4> &mouse_activity, int count,
+				int gap = 10);
 
 lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect);
 lol_dashboard_rect lol_dashboard_aspect_fit_aligned(const lol_dashboard_rect &bounds, double aspect,
