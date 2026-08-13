@@ -213,6 +213,10 @@ obs_properties_t *properties(void *data)
 						    obs_module_text("LoLGameReport"), OBS_GROUP_NORMAL,
 						    obs_properties_create());
 	auto *hands_diff_properties = obs_property_group_content(hands_diff);
+	if (data)
+		static_cast<dashboard_source *>(data)->report_manager().add_properties(hands_diff_properties);
+	else
+		lol_report_manager::add_active_properties(hands_diff_properties);
 	auto *frame = obs_properties_add_group(hands_diff_properties, "lol_dashboard.frame",
 					       obs_module_text("LoLPerformanceDashboard.GameFrame"), OBS_GROUP_NORMAL,
 					       obs_properties_create());
@@ -287,7 +291,7 @@ obs_properties_t *properties(void *data)
 				obs_property_list_add_int(
 					slot, obs_module_text("LoLPerformanceDashboard.Widget.MouseActivity"), 2);
 				obs_property_list_add_int(slot,
-						  obs_module_text("LoLPerformanceDashboard.Widget.Totals"), 3);
+							  obs_module_text("LoLPerformanceDashboard.Widget.Totals"), 3);
 				obs_property_list_add_int(
 					slot, obs_module_text("LoLPerformanceDashboard.Widget.Distance"), 4);
 				obs_property_list_add_int(
@@ -314,10 +318,6 @@ obs_properties_t *properties(void *data)
 			obs_property_list_add_int(total_metric, obs_module_text("MouseActivity.Distance"), 2);
 		}
 	}
-	if (data)
-		static_cast<dashboard_source *>(data)->report_manager().add_properties(properties);
-	else
-		lol_report_manager::add_active_properties(properties);
 	auto *trail = obs_properties_add_group(hud_properties, "lol_dashboard.trail",
 					       obs_module_text("LoLPerformanceDashboard.ClickTrail"), OBS_GROUP_NORMAL,
 					       obs_properties_create());
