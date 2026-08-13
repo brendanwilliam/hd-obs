@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reconcile Daily Branches"
+  short_description: "Combine the past day of branch changes safely"
+  default_prompt: "Use $daily-branch-reconcile to combine non-main branch commits from the past 24 hours."

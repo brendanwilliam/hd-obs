@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Branch Work"
+  short_description: "Find recently active branches not in develop"
+  default_prompt: "Use $branch-work-audit to report unmerged branch work from the past week."
