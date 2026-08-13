@@ -70,21 +70,34 @@ changes, or when explicitly asked to audit OBS documentation.
 
 ## Local development plugin refresh
 
-After every commit, rebuild and reinstall the macOS plugin from the **currently checked-out working
+After every commit, rebuild and refresh the macOS plugin from the **currently checked-out working
 branch** before handing off work for local testing. Never check out, build, or install `main`, `release`,
 or another branch as a substitute for the branch containing the change.
 
-First verify the current branch with `git branch --show-current`. Use one matching CMake configuration
-for both build and installation; the normal development configuration is `RelWithDebInfo`:
+First verify the current branch with `git branch --show-current`. The normal development configuration is
+`RelWithDebInfo`:
 
 ```sh
 cmake --preset macos
 cmake --build --preset macos --config RelWithDebInfo
-cmake --install build_macos --config RelWithDebInfo
 ```
 
-Do not install a stale `Release` bundle after building `RelWithDebInfo`. Ask the user to fully quit and
-reopen OBS after installation; do not control OBS unless explicitly asked.
+For normal development, OBS must load the built bundle through this persistent symlink:
+
+```sh
+~/Library/Application Support/obs-studio/plugins/hd-obs.plugin \
+  -> <repository>/build_macos/RelWithDebInfo/hd-obs.plugin
+```
+
+Verify this exact path before every local handoff. OBS loads this project from `hd-obs.plugin`; a link named
+`input-activity.plugin` can coexist with a stale `hd-obs.plugin` and will not refresh the running plugin. If a
+regular installed bundle occupies the `hd-obs.plugin` path, obtain explicit approval before switching it: move it
+to a timestamped backup in the same directory, then create the symlink. Never leave two loadable bundles with the
+same `com.brendanwilliam.input-activity` identifier in the plugins directory.
+
+Use `cmake --install build_macos --config RelWithDebInfo` only when the user explicitly requests a copied local
+installation. Do not install a stale `Release` bundle after building `RelWithDebInfo`. Ask the user to fully quit
+and reopen OBS after refresh; do not control OBS unless explicitly asked.
 
 ## Repository-owned skills
 

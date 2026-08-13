@@ -95,10 +95,14 @@ void lol_dashboard_visuals::draw_top_keys(QPainter &painter, const QRect &bounds
 	const QRect chart(content.left(), chart_top + chart_title_height + style_.label_spacing, content.width(),
 			  std::max(1, content.bottom() - chart_top - chart_title_height - style_.label_spacing + 1));
 	constexpr int bar_vertical_spacing = 12;
-	const int row_height = std::max(1, chart.height() / 8);
-	for (int index = 0; index < int(keys.size()); ++index) {
+	const int text_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
+	const int minimum_row_height = text_height + 2 + 12;
+	const int visible_rows = std::min(
+		int(keys.size()), std::max(1, (chart.height() + bar_vertical_spacing) /
+						  (minimum_row_height + bar_vertical_spacing)));
+	const int row_height = minimum_row_height;
+	for (int index = 0; index < visible_rows; ++index) {
 		const int y = chart.top() + index * (row_height + bar_vertical_spacing);
-		const int text_height = QFontMetrics(dashboard_font(style_.numbers_secondary)).height() + 2;
 		const int within_element_gap = style_.within_element_gap;
 		if (alignment == lol_dashboard_alignment::left) {
 			painter.setFont(dashboard_font(style_.numbers_secondary));

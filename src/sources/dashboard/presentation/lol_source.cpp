@@ -20,6 +20,7 @@
 #include <QStringList>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <obs-module.h>
 #include <obs-hotkey.h>
 #include <util/bmem.h>
@@ -209,11 +210,24 @@ public:
 			painter.fillRect(lol_dashboard_qrect(panels.camera_mask), camera_background_color_);
 		if (game_visible_) {
 			if (analysis_enabled_) {
-				const auto heights_for = [&](const lol_dashboard_regions::section &section) {
+				const auto heights_for = [&](const lol_dashboard_regions::section &section,
+							     const lol_dashboard_rect &bounds) {
 					std::array<int, 4> heights{};
 					for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
 						heights[index] = lol_dashboard_widget_preferred_height(
 							section.widgets[index], style_);
+					for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
+						if (section.widgets[index] ==
+						    lol_dashboard_regions::widget::mouse_activity) {
+							const int content_width = std::max(
+								1, bounds.width() - 2 * style_.section_padding);
+							const int map_height = int(
+								std::lround(double(content_width) * frame_.height() /
+									    std::max(1, frame_.width())));
+							heights[index] =
+								std::max(heights[index],
+									 map_height + 2 * style_.section_padding);
+						}
 					return heights;
 				};
 				const auto weights_for = [](const lol_dashboard_regions::section &section,
@@ -231,8 +245,8 @@ public:
 				std::array<QRect, 4> top_rects{}, left_rects{}, right_rects{};
 				const auto side_slots = [&](const lol_dashboard_regions::section &section,
 							    const lol_dashboard_rect &bounds) {
-					return lol_dashboard_stack_slots(bounds, heights_for(section), section.count,
-									 style_.element_y_gap);
+					return lol_dashboard_stack_slots(bounds, heights_for(section, bounds),
+									 section.count, style_.element_y_gap);
 				};
 				const auto left = side_slots(regions_.left, panels.heatmap);
 				const auto right = side_slots(regions_.right, panels.keys);

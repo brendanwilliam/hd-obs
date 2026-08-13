@@ -360,6 +360,7 @@ QString lol_dashboard_visuals::distance_label() const
 }
 void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds) const
 {
+	painter.save();
 	painter.setClipRect(bounds);
 	QColor tracking_background(Qt::black);
 	tracking_background.setAlphaF(0.2);
@@ -454,6 +455,7 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 			painter.restore();
 		}
 	}
+	painter.restore();
 }
 namespace {
 void draw_dashboard_value(QPainter &painter, const QRect &bounds, const sources::lol_dashboard_style &style,
@@ -577,7 +579,6 @@ void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions
 		break;
 	case lol_dashboard_regions::widget::mouse_activity:
 		draw_pointer(painter, lol_dashboard_heatmap_content_bounds(bounds, game_frame_, style_, alignment));
-		painter.setClipping(false);
 		break;
 	case lol_dashboard_regions::widget::cumulative_totals:
 		draw_cumulative_totals(painter, bounds, alignment, total_metric);
