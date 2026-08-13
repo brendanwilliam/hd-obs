@@ -3,6 +3,7 @@
 #include "sources/game_report/collection/lol_game_context.hpp"
 #include "sources/game_report/collection/lol_gameplay_keys.hpp"
 #include "sources/game_report/data/lol_diagnostics.hpp"
+#include "sources/game_report/data/lol_session_store.hpp"
 
 #include "hook/uiohook_helper.hpp"
 #include "input/input_broker.hpp"
@@ -17,6 +18,7 @@
 #include <QSslSocket>
 #include <QThread>
 #include <QTimer>
+#include <QStandardPaths>
 #include <QUuid>
 
 #include <atomic>
@@ -52,6 +54,7 @@ public:
 	{
 		if (timer_)
 			timer_->stop();
+		checkpoint(false);
 		diagnostics_.write("collector", "worker_stopped");
 		diagnostics_.close_and_remove();
 	}
@@ -170,6 +173,8 @@ private:
 		last_game_seconds_ = context.game_time;
 		anchor_monotonic_ns_ = os_gettime_ns();
 		metrics_.evaluate_through(int(std::floor(context.game_time)));
+		if (last_checkpoint_seconds_ < 0 || context.game_time - last_checkpoint_seconds_ >= 5.0)
+			checkpoint(false);
 		if (context.game_end)
 			finalize("game_end");
 	}
@@ -189,6 +194,7 @@ private:
 		metrics_.reset(int(std::floor(context.game_time)));
 		pressed_modifiers_.clear();
 		last_game_seconds_ = context.game_time;
+		last_checkpoint_seconds_ = -1.0;
 		anchor_monotonic_ns_ = os_gettime_ns();
 		active_ = true;
 		state_ = collection_state::recording;
@@ -278,6 +284,7 @@ private:
 		report_.completed_at = QDateTime::currentDateTimeUtc();
 		report_.v2_intensity = metrics_.intensity();
 		report_.v2_summary = metrics_.summary();
+		checkpoint(true);
 		diagnostics_.write("collector", "report_finalized",
 				   {{"reason", reason},
 				    {"duration_seconds", report_.duration_seconds},
@@ -288,6 +295,25 @@ private:
 		active_ = false;
 		invalid_polls_ = 0;
 		state_ = collection_state::empty;
+	}
+	void checkpoint(bool finalized)
+	{
+		if (!active_ || report_.id.isEmpty())
+			return;
+		report snapshot = report_;
+		snapshot.duration_seconds = std::max(1, int(std::ceil(last_game_seconds_)));
+		snapshot.completed_at = QDateTime::currentDateTimeUtc();
+		snapshot.v2_intensity = metrics_.intensity();
+		snapshot.v2_summary = metrics_.summary();
+		if (!finalized)
+			snapshot.complete = false;
+		if (!checkpoint_store_)
+			checkpoint_store_ = std::make_unique<session_store>(
+				QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+				"/league-game-reports");
+		checkpoint_store_->save_checkpoint(
+			{snapshot, upload_state::pending, QDateTime::currentDateTimeUtc(), 0});
+		last_checkpoint_seconds_ = last_game_seconds_;
 	}
 	QString unsupported_reason(const game_context &context) const
 	{
@@ -315,8 +341,10 @@ private:
 	std::function<void(const report &)> submission_callback_;
 	std::function<void(const QString &)> champion_callback_;
 	diagnostic_log diagnostics_;
+	std::unique_ptr<session_store> checkpoint_store_;
 	uint64_t anchor_monotonic_ns_{};
 	double last_game_seconds_{};
+	double last_checkpoint_seconds_{-1.0};
 	int invalid_polls_{};
 	bool pending_{};
 	bool active_{};

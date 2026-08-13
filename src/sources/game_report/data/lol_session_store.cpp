@@ -62,6 +62,11 @@ QString session_store::path_for(const QString &report_id) const
 	return root_ + "/" + report_id + ".json";
 }
 
+QString session_store::checkpoint_path() const
+{
+	return root_ + "/in-progress.json";
+}
+
 bool session_store::save(const retained_session &session)
 {
 	if (session.value.id.isEmpty())
@@ -106,6 +111,31 @@ bool session_store::update_upload(const QString &report_id, upload_state state, 
 		return save(session);
 	}
 	return false;
+}
+
+bool session_store::save_checkpoint(const retained_session &session)
+{
+	if (session.value.id.isEmpty())
+		return false;
+	QSaveFile file(checkpoint_path());
+	if (!file.open(QIODevice::WriteOnly))
+		return false;
+	return file.write(QJsonDocument(session_json(session)).toJson(QJsonDocument::Compact)) >= 0 && file.commit();
+}
+
+std::optional<retained_session> session_store::load_checkpoint() const
+{
+	QFile file(checkpoint_path());
+	if (!file.open(QIODevice::ReadOnly))
+		return std::nullopt;
+	retained_session session;
+	return session_from_json(QJsonDocument::fromJson(file.readAll()).object(), session) ? std::optional{session}
+											    : std::nullopt;
+}
+
+bool session_store::clear_checkpoint()
+{
+	return !QFile::exists(checkpoint_path()) || QFile::remove(checkpoint_path());
 }
 
 } // namespace sources::lol_game_report

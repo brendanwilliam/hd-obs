@@ -79,9 +79,15 @@ online_reports::online_reports(QObject *parent) : QObject(parent), implementatio
 	implementation_->token = credential();
 }
 
-void online_reports::start() { implementation_->upload_timer->start(); }
+void online_reports::start()
+{
+	implementation_->upload_timer->start();
+}
 
-online_reports::~online_reports() { delete implementation_; }
+online_reports::~online_reports()
+{
+	delete implementation_;
+}
 
 void online_reports::shutdown()
 {
@@ -100,8 +106,20 @@ void online_reports::load_queue()
 {
 	const auto retained = implementation_->sessions ? implementation_->sessions->load()
 							: QVector<retained_session>{};
+	session_store checkpoints(implementation_->root);
+	if (const auto checkpoint = checkpoints.load_checkpoint()) {
+		const bool already_retained =
+			std::any_of(retained.cbegin(), retained.cend(), [&](const retained_session &session) {
+				return session.value.id == checkpoint->value.id;
+			});
+		if (!already_retained)
+			implementation_->sessions->save(*checkpoint);
+		checkpoints.clear_checkpoint();
+	}
+	const auto recovered = implementation_->sessions ? implementation_->sessions->load()
+							 : QVector<retained_session>{};
 	QSet<QString> retained_ids;
-	for (const auto &session : retained)
+	for (const auto &session : recovered)
 		retained_ids.insert(session.value.id);
 	QFile file(implementation_->root + "/online-upload-queue.json");
 	if (file.open(QIODevice::ReadOnly)) {
@@ -115,7 +133,7 @@ void online_reports::load_queue()
 					 object["attempts"].toInt()});
 		}
 	}
-	for (const auto &session : retained) {
+	for (const auto &session : recovered) {
 		QJsonObject payload = to_json(session.value);
 		const QString hash = payload_hash(payload);
 		payload.insert("payload_hash", hash);

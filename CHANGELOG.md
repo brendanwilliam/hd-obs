@@ -33,6 +33,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- League Game Report collection now checkpoints active captures every five seconds and recovers interrupted captures for queued upload on the next plugin start.
 - League Game Report uploads now support Practice Tool matches.
 - LoL Performance Dashboard side HUDs now preserve mouse-activity map proportions, retain their clipping bounds, and keep key rows readable in compact layouts.
 - League Game Report collection now uploads its privacy-safe payload to Hands Diff and opens the hosted web report after upload; the embedded local recap, export, and plugin-side Riot enrichment have been removed.
