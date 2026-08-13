@@ -30,12 +30,8 @@ game_context parse_game_context(const QJsonObject &all_game_data)
 
 bool supported_game(const game_context &context)
 {
-	const bool supported_classic_queue = context.game_mode == "CLASSIC" &&
-					     (context.queue_id == 400 || context.queue_id == 420 ||
-					      context.queue_id == 430 || context.queue_id == 440 ||
-					      context.queue_id == 490);
 	return !context.riot_id_game_name.isEmpty() && !context.riot_id_tag_line.isEmpty() &&
-	       context.map_number == 11 && (supported_classic_queue || context.game_mode == "PRACTICETOOL") &&
+	       context.map_number == 11 && (context.game_mode == "CLASSIC" || context.game_mode == "PRACTICETOOL") &&
 	       context.game_time >= 0.0;
 }
 
