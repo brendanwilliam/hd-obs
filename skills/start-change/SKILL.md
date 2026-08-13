@@ -10,6 +10,9 @@ description: Start a governed change in this repository. Use when beginning feat
    - `feature/<kebab-title>` for new behavior
    - `fix/<kebab-title>` for a defect
    - `chore/<kebab-title>` for maintenance
+   - `feature/<issue>-<kebab-title>`, `fix/<issue>-<kebab-title>`, or
+     `chore/<issue>-<kebab-title>` when work follows an explicitly selected
+     same-repository GitHub Issue
    - `chore/updates-YYYY-MM-DD` for a coordinated group of multiple tasks implemented that day; merge it to
      `develop` in one pull request after the group is ready
 3. Use `develop` as the feature base and pull-request target. Do not directly push `develop` or `main`.

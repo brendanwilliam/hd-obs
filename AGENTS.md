@@ -3,6 +3,9 @@
 ## Policy
 
 Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches from current `develop`.
+For selected GitHub Issues, include the issue number as
+`feature/<issue>-<kebab-title>`, `fix/<issue>-<kebab-title>`, or
+`chore/<issue>-<kebab-title>`.
 Target `develop` through a pull request for ordinary changes; it is the shared integration branch for parallel
 work. Promote `develop` to `main` through a separate pull request only when the integrated set is ready.
 Never push directly to either protected branch, and never bypass `main`'s required checks on the promotion PR.
@@ -107,6 +110,7 @@ and reopen OBS after refresh; do not control OBS unless explicitly asked.
 - [`skills/refresh-obs-docs-reference`](skills/refresh-obs-docs-reference/SKILL.md): audit the full OBS documentation site and refresh the local navigation reference.
 - [`skills/use-obs-docs-reference`](skills/use-obs-docs-reference/SKILL.md): locate and verify OBS API documentation during development or review.
 - [`skills/check-code-size`](skills/check-code-size/SKILL.md): enforce source-module size, ownership, and grouping rules.
+- [`skills/obs-github-issues`](skills/obs-github-issues/SKILL.md): discover and begin explicitly selected GitHub Issue work.
 
 Install these into a local Codex skills directory with `./scripts/install-repository-skills.sh`.
 
