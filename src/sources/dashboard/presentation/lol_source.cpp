@@ -20,6 +20,7 @@
 #include <QStringList>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <obs-module.h>
 #include <obs-hotkey.h>
 #include <util/bmem.h>
@@ -177,8 +178,8 @@ public:
 							panels.camera_mask.width(), panels.camera_mask.height(),
 							panels.camera.left(), panels.camera.top(),
 							panels.camera.width(), panels.camera.height());
-		visuals_.configure(theme_, regions_, rolling_window_seconds, frame_,
-				   lol_dashboard_qrect(panels.heatmap), style_, trail_filter_, report_.mouse_dpi());
+		visuals_.configure(theme_, regions_, rolling_window_seconds, frame_, style_, trail_filter_,
+				   report_.mouse_dpi());
 		visuals_.set_gameplay_actions(gameplay_actions_);
 		if (!analysis_enabled_) {
 			visuals_.clear_live_keys();
@@ -209,56 +210,49 @@ public:
 			painter.fillRect(lol_dashboard_qrect(panels.camera_mask), camera_background_color_);
 		if (game_visible_) {
 			if (analysis_enabled_) {
-				const auto heights_for = [&](const lol_dashboard_regions::section &section) {
+				const auto heights_for = [&](const lol_dashboard_regions::section &section,
+							     const lol_dashboard_rect &bounds) {
 					std::array<int, 4> heights{};
 					for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
-						heights[index] = lol_dashboard_widget_preferred_height(section.widgets[index], style_);
+						heights[index] = lol_dashboard_widget_preferred_height(
+							section.widgets[index], style_);
+					for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
+						if (section.widgets[index] ==
+						    lol_dashboard_regions::widget::mouse_activity) {
+							const int content_width = std::max(
+								1, bounds.width() - 2 * style_.section_padding);
+							const int map_height = int(
+								std::lround(double(content_width) * frame_.height() /
+									    std::max(1, frame_.width())));
+							heights[index] =
+								std::max(heights[index],
+									 map_height + 2 * style_.section_padding);
+						}
 					return heights;
 				};
-				const auto weights_for = [](const lol_dashboard_regions::section &section, bool horizontal) {
+				const auto weights_for = [](const lol_dashboard_regions::section &section,
+							    bool horizontal) {
 					std::array<int, 4> weights{};
 					for (int index = 0; index < std::clamp(section.count, 0, 4); ++index)
-						weights[index] = lol_dashboard_widget_layout_weight(section.widgets[index], horizontal);
+						weights[index] = lol_dashboard_widget_layout_weight(
+							section.widgets[index], horizontal);
 					return weights;
 				};
 				const auto top = lol_dashboard_split_weighted_slots(panels.header,
-									    weights_for(regions_.top, true),
-									    regions_.top.count, true,
-									    style_.element_x_gap);
-				const auto right = lol_dashboard_stack_slots(panels.keys, heights_for(regions_.right),
-									  regions_.right.count, style_.element_y_gap);
+										    weights_for(regions_.top, true),
+										    regions_.top.count, true,
+										    style_.element_x_gap);
 				std::array<QRect, 4> top_rects{}, left_rects{}, right_rects{};
-				int mouse_slot = -1;
-				for (int index = 0; index < std::clamp(regions_.left.count, 0, 4); ++index)
-					if (regions_.left.widgets[index] ==
-					    lol_dashboard_regions::widget::mouse_activity) {
-						mouse_slot = index;
-						break;
-					}
-				if (mouse_slot >= 0) {
-					left_rects[mouse_slot] = lol_dashboard_qrect(panels.heatmap);
-					std::array<int, 4> summary_weights{};
-					std::array<int, 4> summary_indexes{};
-					int summary_count = 0;
-					for (int index = 0; index < std::clamp(regions_.left.count, 0, 4); ++index)
-						if (index != mouse_slot) {
-							summary_weights[summary_count] = lol_dashboard_widget_preferred_height(
-								regions_.left.widgets[index], style_);
-							summary_indexes[summary_count++] = index;
-						}
-					const auto summary = lol_dashboard_stack_slots(panels.summary, summary_weights, summary_count,
-											 style_.element_y_gap);
-					for (int index = 0; index < summary_count; ++index)
-						left_rects[summary_indexes[index]] =
-							lol_dashboard_qrect(summary[index]);
-				} else {
-					const auto left = lol_dashboard_stack_slots(panels.heatmap, heights_for(regions_.left),
-									 regions_.left.count, style_.element_y_gap);
-					for (int index = 0; index < 4; ++index)
-						left_rects[index] = lol_dashboard_qrect(left[index]);
-				}
+				const auto side_slots = [&](const lol_dashboard_regions::section &section,
+							    const lol_dashboard_rect &bounds) {
+					return lol_dashboard_stack_slots(bounds, heights_for(section, bounds),
+									 section.count, style_.element_y_gap);
+				};
+				const auto left = side_slots(regions_.left, panels.heatmap);
+				const auto right = side_slots(regions_.right, panels.keys);
 				for (int index = 0; index < 4; ++index) {
 					top_rects[index] = lol_dashboard_qrect(top[index]);
+					left_rects[index] = lol_dashboard_qrect(left[index]);
 					right_rects[index] = lol_dashboard_qrect(right[index]);
 				}
 				visuals_.draw(painter, top_rects, left_rects, right_rects);

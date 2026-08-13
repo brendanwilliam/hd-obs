@@ -41,22 +41,33 @@ lol_dashboard_rect anchored_lower_corner(lol_dashboard_rect rect, const lol_dash
 
 lol_dashboard_rect lol_dashboard_aspect_fit(const lol_dashboard_rect &bounds, double aspect)
 {
+	return lol_dashboard_aspect_fit_aligned(bounds, aspect, lol_dashboard_alignment::center);
+}
+
+lol_dashboard_rect lol_dashboard_aspect_fit_aligned(const lol_dashboard_rect &bounds, double aspect,
+						    lol_dashboard_alignment alignment)
+{
 	if (bounds.isEmpty() || aspect <= 0.0)
 		return {};
 	lol_dashboard_rect result = fit(bounds, aspect, 1.0);
-	result.moveLeft(bounds.left() + (bounds.width() - result.width()) / 2);
+	switch (alignment) {
+	case lol_dashboard_alignment::left:
+		result.moveLeft(bounds.left());
+		break;
+	case lol_dashboard_alignment::right:
+		result.moveLeft(bounds.right() - result.width() + 1);
+		break;
+	case lol_dashboard_alignment::center:
+		result.moveLeft(bounds.left() + (bounds.width() - result.width()) / 2);
+		break;
+	}
 	result.moveTop(bounds.top() + (bounds.height() - result.height()) / 2);
 	return result;
 }
 
 lol_dashboard_rect lol_dashboard_aspect_fit_left(const lol_dashboard_rect &bounds, double aspect)
 {
-	if (bounds.isEmpty() || aspect <= 0.0)
-		return {};
-	lol_dashboard_rect result = fit(bounds, aspect, 1.0);
-	result.moveLeft(bounds.left());
-	result.moveTop(bounds.top() + (bounds.height() - result.height()) / 2);
-	return result;
+	return lol_dashboard_aspect_fit_aligned(bounds, aspect, lol_dashboard_alignment::left);
 }
 
 std::array<lol_dashboard_rect, 4> lol_dashboard_split_slots(const lol_dashboard_rect &bounds, int count,

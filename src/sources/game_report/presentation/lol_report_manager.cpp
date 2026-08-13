@@ -22,6 +22,7 @@ constexpr const char *development_logs_key = "lol_dashboard.report.development_l
 constexpr const char *upload_enabled_key = "lol_dashboard.report.upload_enabled";
 constexpr const char *analysis_enabled_key = "lol_dashboard.report.analysis_enabled";
 constexpr const char *game_config_key = "lol_dashboard.game_cfg";
+lol_report_manager *active_manager{};
 } // namespace
 
 class lol_report_manager::implementation {
@@ -132,9 +133,14 @@ public:
 
 lol_report_manager::implementation *lol_report_manager::implementation::owner{};
 
-lol_report_manager::lol_report_manager() : implementation_(new implementation) {}
+lol_report_manager::lol_report_manager() : implementation_(new implementation)
+{
+	active_manager = this;
+}
 lol_report_manager::~lol_report_manager()
 {
+	if (active_manager == this)
+		active_manager = nullptr;
 	delete implementation_;
 }
 void lol_report_manager::update(obs_data *settings)
@@ -232,5 +238,10 @@ void lol_report_manager::add_properties(obs_properties *properties)
 						      obs_module_text("LoLGameReport.Online"), OBS_GROUP_NORMAL,
 						      online);
 	Q_UNUSED(online_group);
+}
+void lol_report_manager::add_active_properties(obs_properties *properties)
+{
+	if (active_manager)
+		active_manager->add_properties(properties);
 }
 } // namespace sources

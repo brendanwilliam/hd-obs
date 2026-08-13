@@ -24,8 +24,6 @@ struct lol_dashboard_theme {
 	QColor background;
 };
 
-enum class lol_dashboard_alignment { left, center, right };
-
 struct lol_dashboard_regions {
 	enum class widget { none, intensity, mouse_activity, cumulative_totals, mouse_distance, live_keys, top_keys };
 	struct section {
@@ -81,13 +79,13 @@ int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, 
 void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
 				      const QString &text);
 QRect lol_dashboard_heatmap_content_bounds(const QRect &bounds, const QRect &game_frame,
-					   const lol_dashboard_style &style);
+					   const lol_dashboard_style &style, lol_dashboard_alignment alignment);
 
 class lol_dashboard_visuals {
 public:
 	void configure(const lol_dashboard_theme &theme, const lol_dashboard_regions &regions,
-		       int rolling_window_seconds, const QRect &game_frame, const QRect &pointer_bounds,
-		       const lol_dashboard_style &style, const lol_dashboard_trail_filter &trail_filter, int mouse_dpi);
+		       int rolling_window_seconds, const QRect &game_frame, const lol_dashboard_style &style,
+		       const lol_dashboard_trail_filter &trail_filter, int mouse_dpi);
 	void set_gameplay_actions(const QHash<QString, QString> &actions);
 	void consume(const std::vector<input_data::trace_event> &events,
 		     const input_data::button_map<uint16_t> &keyboard, const input_data::button_map<uint16_t> &mouse);
@@ -141,7 +139,6 @@ private:
 	lol_dashboard_trail_filter trail_filter_;
 	lol_dashboard_style style_;
 	QRect game_frame_{0, 0, 1920, 1080};
-	QRect pointer_bounds_;
 	std::optional<QPointF> pointer_;
 	std::deque<trail_event> trail_;
 	std::deque<motion_sample> motion_trail_;

@@ -287,7 +287,9 @@ obs_properties_t *properties(void *data)
 				obs_property_list_add_int(
 					slot, obs_module_text("LoLPerformanceDashboard.Widget.MouseActivity"), 2);
 				obs_property_list_add_int(slot,
-							  obs_module_text("LoLPerformanceDashboard.Widget.Totals"), 3);
+						  obs_module_text("LoLPerformanceDashboard.Widget.Totals"), 3);
+				obs_property_list_add_int(
+					slot, obs_module_text("LoLPerformanceDashboard.Widget.Distance"), 4);
 				obs_property_list_add_int(
 					slot, obs_module_text("LoLPerformanceDashboard.Widget.LiveKeys"), 5);
 				obs_property_list_add_int(slot,
@@ -314,6 +316,8 @@ obs_properties_t *properties(void *data)
 	}
 	if (data)
 		static_cast<dashboard_source *>(data)->report_manager().add_properties(properties);
+	else
+		lol_report_manager::add_active_properties(properties);
 	auto *trail = obs_properties_add_group(hud_properties, "lol_dashboard.trail",
 					       obs_module_text("LoLPerformanceDashboard.ClickTrail"), OBS_GROUP_NORMAL,
 					       obs_properties_create());

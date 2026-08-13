@@ -218,6 +218,18 @@ if(BUILD_TESTING)
   target_include_directories(lol-input-bindings-test PRIVATE src)
   target_compile_features(lol-input-bindings-test PRIVATE cxx_std_17)
   add_test(NAME lol-input-bindings COMMAND lol-input-bindings-test)
+  foreach(
+    test_target
+    league-safe-area-layout-test
+    lol-game-report-test
+    lol-session-store-test
+    lol-game-context-test
+    lol-gameplay-keys-test
+    lol-v2-metrics-test
+    lol-input-bindings-test
+  )
+    target_compile_options(${test_target} PRIVATE -UNDEBUG)
+  endforeach()
   if(APPLE)
     target_link_options(league-safe-area-layout-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
     target_link_options(lol-game-report-test PRIVATE "-Wl,-rpath,${_qt6_lib_dir}")
