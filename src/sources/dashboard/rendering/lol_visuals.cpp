@@ -77,6 +77,23 @@ Qt::Alignment horizontal_alignment(lol_dashboard_alignment alignment)
 	}
 	return Qt::AlignLeft;
 }
+
+void draw_mouse_button_icon(QPainter &painter, const QRect &bounds, uint16_t button)
+{
+	constexpr int mouse_width = 14;
+	constexpr int mouse_height = 21;
+	const QRect icon(bounds.right() - mouse_width + 1, bounds.center().y() - mouse_height / 2, mouse_width,
+			 mouse_height);
+	const int split = icon.center().x();
+	painter.setPen(QPen(Qt::white, 1.5));
+	painter.setBrush(Qt::NoBrush);
+	painter.drawRoundedRect(icon, 5, 5);
+	painter.drawLine(split, icon.top(), split, icon.top() + icon.height() / 2);
+	QRect pressed = button == MOUSE_BUTTON1
+				? QRect(icon.left() + 1, icon.top() + 1, split - icon.left() - 1, icon.height() / 2 - 1)
+				: QRect(split + 1, icon.top() + 1, icon.right() - split - 1, icon.height() / 2 - 1);
+	painter.fillRect(pressed, Qt::white);
+}
 } // namespace
 
 void lol_dashboard_visuals::set_gameplay_actions(const QHash<QString, QString> &actions)
@@ -422,8 +439,8 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 			       : event.button == MOUSE_BUTTON2 ? QColor(59, 130, 246)
 							       : QColor(250, 204, 21);
 		color.setAlphaF(std::pow(0.95, trail_.size() - 1 - index));
-		painter.setBrush(color);
-		painter.setPen(Qt::NoPen);
+		painter.setBrush(Qt::NoBrush);
+		painter.setPen(QPen(color, 2));
 		if (event.button == MOUSE_BUTTON1 || event.button == MOUSE_BUTTON2 || event.button == MOUSE_BUTTON3)
 			painter.drawEllipse(point, 7, 7);
 		else
@@ -447,11 +464,16 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 						      : 1.0;
 			painter.save();
 			painter.setOpacity(opacity);
-			painter.setPen(Qt::white);
-			painter.setFont(dashboard_font(style_.numbers_secondary, QFont::Bold));
-			lol_dashboard_draw_shadowed_text(
-				painter, QRect(int(point.x()) - 42, int(point.y()) - 24 - int(index) * 18, 38, 18),
-				Qt::AlignRight | Qt::AlignVCenter, indicator.label);
+			const QRect indicator_bounds(int(point.x()) - 44, int(point.y()) - 27 - int(index) * 22, 40,
+						     22);
+			if (indicator.code == MOUSE_BUTTON1 || indicator.code == MOUSE_BUTTON2)
+				draw_mouse_button_icon(painter, indicator_bounds, indicator.code);
+			else {
+				painter.setPen(Qt::white);
+				painter.setFont(dashboard_font(style_.numbers_secondary, QFont::Bold));
+				lol_dashboard_draw_shadowed_text(painter, indicator_bounds,
+								 Qt::AlignRight | Qt::AlignVCenter, indicator.label);
+			}
 			painter.restore();
 		}
 	}
