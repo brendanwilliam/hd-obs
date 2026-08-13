@@ -111,6 +111,8 @@ and reopen OBS after refresh; do not control OBS unless explicitly asked.
 - [`skills/use-obs-docs-reference`](skills/use-obs-docs-reference/SKILL.md): locate and verify OBS API documentation during development or review.
 - [`skills/check-code-size`](skills/check-code-size/SKILL.md): enforce source-module size, ownership, and grouping rules.
 - [`skills/obs-github-issues`](skills/obs-github-issues/SKILL.md): discover and begin explicitly selected GitHub Issue work.
+- [`skills/branch-work-audit`](skills/branch-work-audit/SKILL.md): report recently active branches with work not merged into `develop`.
+- [`skills/daily-branch-reconcile`](skills/daily-branch-reconcile/SKILL.md): integrate and reconcile the past day's unmerged branch commits.
 
 Install these into a local Codex skills directory with `./scripts/install-repository-skills.sh`.
 
