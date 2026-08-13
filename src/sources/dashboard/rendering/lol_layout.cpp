@@ -140,41 +140,33 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_
 }
 
 std::array<lol_dashboard_rect, 4>
-lol_dashboard_left_widget_slots(const lol_dashboard_rect &heatmap, const lol_dashboard_rect &summary,
-				const lol_dashboard_rect &top_keys, const std::array<int, 4> &heights,
-				const std::array<bool, 4> &mouse_activity, const std::array<bool, 4> &top_key_widgets,
-				int count, int gap)
+lol_dashboard_left_widget_slots(const lol_dashboard_rect &heatmap, const lol_dashboard_rect &stack_with_mouse_activity,
+				const lol_dashboard_rect &stack_without_mouse_activity,
+				const std::array<int, 4> &heights, const std::array<bool, 4> &mouse_activity, int count,
+				int gap)
 {
 	count = std::clamp(count, 0, 4);
-	int mouse_slot = -1, top_keys_slot = -1;
+	int mouse_slot = -1;
 	for (int index = 0; index < count; ++index)
 		if (mouse_activity[index]) {
 			mouse_slot = index;
 			break;
 		}
-	if (!top_keys.isEmpty())
-		for (int index = 0; index < count; ++index)
-			if (top_key_widgets[index]) {
-				top_keys_slot = index;
-				break;
-			}
-	if (mouse_slot < 0 && top_keys_slot < 0)
-		return lol_dashboard_stack_slots(heatmap, heights, count, gap);
+	if (mouse_slot < 0)
+		return lol_dashboard_stack_slots(stack_without_mouse_activity, heights, count, gap);
 
 	std::array<lol_dashboard_rect, 4> result{};
-	if (mouse_slot >= 0)
-		result[mouse_slot] = heatmap;
-	if (top_keys_slot >= 0)
-		result[top_keys_slot] = top_keys;
+	result[mouse_slot] = heatmap;
 	std::array<int, 4> summary_heights{};
 	std::array<int, 4> summary_indexes{};
 	int summary_count = 0;
 	for (int index = 0; index < count; ++index)
-		if (index != mouse_slot && index != top_keys_slot) {
+		if (index != mouse_slot) {
 			summary_heights[summary_count] = heights[index];
 			summary_indexes[summary_count++] = index;
 		}
-	const auto summary_slots = lol_dashboard_stack_slots(summary, summary_heights, summary_count, gap);
+	const auto summary_slots =
+		lol_dashboard_stack_slots(stack_with_mouse_activity, summary_heights, summary_count, gap);
 	for (int index = 0; index < summary_count; ++index)
 		result[summary_indexes[index]] = summary_slots[index];
 	return result;
@@ -263,6 +255,9 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 				  map_height};
 		result.summary = {result.heatmap.left(), result.heatmap.bottom() + panel_gap + 1, heat_width,
 				  std::max(0, safe_bottom - result.heatmap.bottom() - panel_gap)};
+		// Without Mouse Activity, the left HUD can use the complete camera-safe
+		// column beginning at the top edge of that safe area.
+		result.left_stack = {result.heatmap.left(), top, heat_width, std::max(0, safe_bottom - top + 1)};
 	} else {
 		const int heat_top = std::max(0, mouse_bounds.bottom() - heat_height + 1);
 		result.heatmap = {minimap_left ? mouse_bounds.right() - heat_width + 1 : mouse_bounds.left(), heat_top,
@@ -274,8 +269,7 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		const int top =
 			int(std::lround((minimap_left ? top_right.bottom : top_left.bottom) * height)) + panel_gap;
 		const int bottom = mouse_bounds.top() - panel_gap - 1;
-		result.left_top_keys = {result.summary.left(), top, result.summary.width(),
-					std::max(0, bottom - top + 1)};
+		result.left_stack = {result.summary.left(), top, result.summary.width(), std::max(0, bottom - top + 1)};
 	}
 	return result;
 }
