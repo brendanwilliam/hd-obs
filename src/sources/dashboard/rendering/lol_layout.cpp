@@ -139,29 +139,38 @@ std::array<lol_dashboard_rect, 4> lol_dashboard_stack_slots(const lol_dashboard_
 	return result;
 }
 
-std::array<lol_dashboard_rect, 4> lol_dashboard_left_widget_slots(const lol_dashboard_rect &heatmap,
-								  const lol_dashboard_rect &summary,
-								  const std::array<int, 4> &heights,
-								  const std::array<bool, 4> &mouse_activity, int count,
-								  int gap)
+std::array<lol_dashboard_rect, 4>
+lol_dashboard_left_widget_slots(const lol_dashboard_rect &heatmap, const lol_dashboard_rect &summary,
+				const lol_dashboard_rect &top_keys, const std::array<int, 4> &heights,
+				const std::array<bool, 4> &mouse_activity, const std::array<bool, 4> &top_key_widgets,
+				int count, int gap)
 {
 	count = std::clamp(count, 0, 4);
-	int mouse_slot = -1;
+	int mouse_slot = -1, top_keys_slot = -1;
 	for (int index = 0; index < count; ++index)
 		if (mouse_activity[index]) {
 			mouse_slot = index;
 			break;
 		}
-	if (mouse_slot < 0)
+	if (!top_keys.isEmpty())
+		for (int index = 0; index < count; ++index)
+			if (top_key_widgets[index]) {
+				top_keys_slot = index;
+				break;
+			}
+	if (mouse_slot < 0 && top_keys_slot < 0)
 		return lol_dashboard_stack_slots(heatmap, heights, count, gap);
 
 	std::array<lol_dashboard_rect, 4> result{};
-	result[mouse_slot] = heatmap;
+	if (mouse_slot >= 0)
+		result[mouse_slot] = heatmap;
+	if (top_keys_slot >= 0)
+		result[top_keys_slot] = top_keys;
 	std::array<int, 4> summary_heights{};
 	std::array<int, 4> summary_indexes{};
 	int summary_count = 0;
 	for (int index = 0; index < count; ++index)
-		if (index != mouse_slot) {
+		if (index != mouse_slot && index != top_keys_slot) {
 			summary_heights[summary_count] = heights[index];
 			summary_indexes[summary_count++] = index;
 		}
@@ -262,6 +271,11 @@ lol_dashboard_panels lol_dashboard_panel_rectangles(const league_safe_area::mode
 		result.summary = {minimap_left ? result.heatmap.left() - summary_width - panel_gap
 					       : result.heatmap.right() + panel_gap + 1,
 				  mouse_bounds.top(), summary_width, mouse_bounds.height()};
+		const int top =
+			int(std::lround((minimap_left ? top_right.bottom : top_left.bottom) * height)) + panel_gap;
+		const int bottom = mouse_bounds.top() - panel_gap - 1;
+		result.left_top_keys = {result.summary.left(), top, result.summary.width(),
+					std::max(0, bottom - top + 1)};
 	}
 	return result;
 }

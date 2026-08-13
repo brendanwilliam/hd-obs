@@ -93,18 +93,25 @@ int main()
 	auto stacked_slots = sources::lol_dashboard_stack_slots({0, 0, 20, 100}, {10, 20, 30, 40}, 3, 5);
 	const sources::lol_dashboard_rect heatmap_bounds{0, 0, 40, 40};
 	const sources::lol_dashboard_rect summary_bounds{50, 0, 20, 100};
+	const sources::lol_dashboard_rect top_keys_bounds{50, 0, 20, 400};
 	const auto default_left_slots = sources::lol_dashboard_left_widget_slots(
-		heatmap_bounds, summary_bounds, {40, 20, 30, 0}, {true, false, false, false}, 3, 5);
+		heatmap_bounds, summary_bounds, {}, {40, 20, 30, 0}, {true, false, false, false}, {}, 3, 5);
 	const auto reordered_left_slots = sources::lol_dashboard_left_widget_slots(
-		heatmap_bounds, summary_bounds, {20, 30, 40, 0}, {false, false, true, false}, 3, 5);
+		heatmap_bounds, summary_bounds, {}, {20, 30, 40, 0}, {false, false, true, false}, {}, 3, 5);
 	const auto map_only_left_slots = sources::lol_dashboard_left_widget_slots(
-		heatmap_bounds, summary_bounds, {10, 15, 20, 0}, {false, false, false, false}, 3, 5);
+		heatmap_bounds, summary_bounds, {}, {10, 15, 20, 0}, {false, false, false, false}, {}, 3, 5);
+	const auto top_keys_left_slots = sources::lol_dashboard_left_widget_slots(heatmap_bounds, summary_bounds,
+										  top_keys_bounds, {40, 20, 460, 0},
+										  {true, false, false, false},
+										  {false, false, true, false}, 3, 5);
 	if (!require(!default_panels.camera_visible) || !require(edge_panels.header.top() == 0) ||
 	    !require(edge_panels.keys.right() == min_model.game.width - 1) ||
 	    !require(edge_panels.heatmap.left() == 0) || !require(edge_panels.summary.left() >= 0) ||
 	    !require(default_panels.heatmap.width() == default_panels.minimap_cover_mask.width()) ||
 	    !require(max_minimap_panels.heatmap.width() == max_minimap_panels.minimap_cover_mask.width()) ||
 	    !require(default_panels.heatmap.bottom() < min_model.game.height) ||
+	    !require(default_panels.left_top_keys.height() > default_panels.summary.height()) ||
+	    !require(default_panels.left_top_keys.bottom() < default_panels.summary.top()) ||
 	    !require(default_panels.minimap_cover_mask.right() == min_model.game.width - 1) ||
 	    !require(default_panels.minimap_cover_mask.bottom() == min_model.game.height - 1) ||
 	    !require(max_minimap_panels.minimap_cover_mask.width() > default_panels.minimap_cover_mask.width()) ||
@@ -130,6 +137,9 @@ int main()
 	    !require(map_only_left_slots[0].left() == heatmap_bounds.left()) ||
 	    !require(map_only_left_slots[1].top() > map_only_left_slots[0].bottom()) ||
 	    !require(map_only_left_slots[2].top() > map_only_left_slots[1].bottom()) ||
+	    !require(top_keys_left_slots[0].left() == heatmap_bounds.left()) ||
+	    !require(top_keys_left_slots[1].left() == summary_bounds.left()) ||
+	    !require(top_keys_left_slots[2].height() == top_keys_bounds.height()) ||
 	    !require(sources::lol_dashboard_split_slots({}, 2, true)[0].isEmpty()))
 		return 1;
 	sources::lol_dashboard_camera_layout camera{true, false, 16.0 / 9.0, 100, 100, 100, 0, 0};
