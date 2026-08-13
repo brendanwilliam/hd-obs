@@ -278,7 +278,7 @@ int lol_dashboard_widget_preferred_height(lol_dashboard_regions::widget widget, 
 	case lol_dashboard_regions::widget::intensity:
 		return vertical_padding + 160;
 	case lol_dashboard_regions::widget::mouse_activity:
-		return vertical_padding + 160;
+		return vertical_padding + label_height + style.label_spacing + 160;
 	case lol_dashboard_regions::widget::none:
 		return 0;
 	}
@@ -327,6 +327,11 @@ void lol_dashboard_visuals::on_event(const input_data::trace_event &event)
 		}
 	} else if (event.type == EVENT_MOUSE_RELEASED) {
 		release_pointer_indicator(event.code, event.time_ns);
+	}
+	if (bound_gameplay_key && pointer_) {
+		trail_.push_back({*pointer_, event.time_ns, 0, lol_dashboard_key_label(event.code).toLower()});
+		if (trail_.size() > 20)
+			trail_.pop_front();
 	}
 	if (bound_gameplay_key && trail_filter_.key_markers && game_frame_.contains(event.x, event.y)) {
 		const QString label = lol_dashboard_key_label(event.code);
@@ -479,6 +484,28 @@ void lol_dashboard_visuals::draw_pointer(QPainter &painter, const QRect &bounds)
 	}
 	painter.restore();
 }
+
+void lol_dashboard_visuals::draw_mouse_activity(QPainter &painter, const QRect &bounds,
+						lol_dashboard_alignment alignment) const
+{
+	const QRect section = bounds.adjusted(style_.section_padding, style_.section_padding, -style_.section_padding,
+					      -style_.section_padding);
+	const QRect content = section.adjusted(style_.element_padding, style_.element_padding, -style_.element_padding,
+					       -style_.element_padding);
+	if (content.width() < 1 || content.height() < 1)
+		return;
+	painter.setPen(Qt::white);
+	painter.setFont(dashboard_font(style_.number_labels, QFont::Bold));
+	const int title_height = QFontMetrics(painter.font()).height() + 2;
+	lol_dashboard_draw_shadowed_text(painter, QRect(content.left(), content.top(), content.width(), title_height),
+					 horizontal_alignment(alignment) | Qt::AlignVCenter,
+					 dashboard_text(obs_module_text("LoLPerformanceDashboard.MouseActivity"),
+							style_.number_labels));
+	const QRect activity(content.left(), content.top() + title_height + style_.label_spacing, content.width(),
+			     std::max(1, content.bottom() - content.top() - title_height - style_.label_spacing + 1));
+	draw_pointer(painter, lol_dashboard_heatmap_content_bounds(activity, game_frame_, style_, alignment));
+}
+
 namespace {
 void draw_dashboard_value(QPainter &painter, const QRect &bounds, const sources::lol_dashboard_style &style,
 			  const sources::lol_dashboard_theme &theme, const QString &label, const QString &value,
@@ -600,7 +627,7 @@ void lol_dashboard_visuals::draw_widget(QPainter &painter, lol_dashboard_regions
 		draw_intensity(painter, bounds, intensity_metric);
 		break;
 	case lol_dashboard_regions::widget::mouse_activity:
-		draw_pointer(painter, lol_dashboard_heatmap_content_bounds(bounds, game_frame_, style_, alignment));
+		draw_mouse_activity(painter, bounds, alignment);
 		break;
 	case lol_dashboard_regions::widget::cumulative_totals:
 		draw_cumulative_totals(painter, bounds, alignment, total_metric);

@@ -32,7 +32,8 @@ void lol_dashboard_visuals::draw_live_keys(QPainter &painter, const QRect &bound
 				     : active_row.left();
 	const uint64_t now = os_gettime_ns();
 	for (int index = 0; index < visible; ++index) {
-		const auto &key = active_keys_[active_keys_.size() - visible + index];
+		const int key_index = alignment == lol_dashboard_alignment::left ? visible - 1 - index : index;
+		const auto &key = active_keys_[active_keys_.size() - visible + key_index];
 		const int x = row_left + index * (key_width + gap);
 		QColor fill = held_.count(key.code) && held_.at(key.code) ? theme_.active : theme_.inactive;
 		const qreal elapsed =

@@ -33,6 +33,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- LoL Performance Dashboard mouse activity now labels and aligns its map like other HUD widgets, marks mapped
+  gameplay keypresses at the current pointer position, and mirrors the live-key row order on the left HUD. The
+  most-used-key heading is now "Top Keys."
 - League Game Report collection now checkpoints active captures every five seconds and recovers interrupted captures for queued upload on the next plugin start.
 - League Game Report uploads now support Practice Tool matches.
 - LoL Performance Dashboard side HUDs now preserve mouse-activity map proportions, retain their clipping bounds, and keep key rows readable in compact layouts.

@@ -123,6 +123,7 @@ private:
 	void activate_pointer_indicator(uint16_t code, const QString &label);
 	void release_pointer_indicator(uint16_t code, uint64_t now);
 	void draw_pointer(QPainter &painter, const QRect &bounds) const;
+	void draw_mouse_activity(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
 	void draw_cumulative_totals(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment,
 				    int metric) const;
 	void draw_mouse_distance(QPainter &painter, const QRect &bounds, lol_dashboard_alignment alignment) const;
