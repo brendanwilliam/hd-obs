@@ -132,6 +132,7 @@ private:
 	void draw_widget(QPainter &painter, lol_dashboard_regions::widget widget, const QRect &bounds,
 			 int intensity_metric, int total_metric, lol_dashboard_alignment alignment) const;
 	bool accepts_key(const QString &label) const;
+	bool is_bound_gameplay_key(uint16_t code) const;
 	QString distance_label() const;
 
 	lol_dashboard_theme theme_{{98, 94, 66}, {221, 193, 131}, {0, 0, 0, 0}};
