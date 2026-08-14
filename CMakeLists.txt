@@ -108,6 +108,8 @@ target_sources(
     src/sources/game_report/collection/lol_game_context.cpp
     src/sources/game_report/collection/lol_gameplay_keys.hpp
     src/sources/game_report/collection/lol_gameplay_keys.cpp
+    src/sources/game_report/collection/lol_playback.hpp
+    src/sources/game_report/collection/lol_playback.cpp
     src/sources/game_report/collection/lol_v2_metrics.hpp
     src/sources/game_report/collection/lol_v2_metrics.cpp
     src/sources/game_report/collection/lol_shared.inc
@@ -162,8 +164,10 @@ if(BUILD_TESTING)
   add_executable(
     lol-game-report-test
     tests/lol_game_report_test.cpp
+    tests/lol_playback_test.cpp
     src/sources/heatmap/lol_geometry.cpp
     src/sources/game_report/data/lol_types.cpp
+    src/sources/game_report/collection/lol_playback.cpp
     src/sources/game_report/data/lol_diagnostics.cpp
     src/sources/game_report/data/lol_session_store.cpp
     src/sources/game_report/integration/lol_online_reports.cpp
@@ -177,6 +181,7 @@ if(BUILD_TESTING)
     tests/lol_session_store_test.cpp
     src/sources/game_report/data/lol_session_store.cpp
     src/sources/game_report/data/lol_types.cpp
+    src/sources/game_report/collection/lol_playback.cpp
   )
   target_link_libraries(lol-session-store-test PRIVATE Qt6::Core Qt6::Gui)
   target_include_directories(lol-session-store-test PRIVATE src)

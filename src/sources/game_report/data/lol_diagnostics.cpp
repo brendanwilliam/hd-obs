@@ -12,8 +12,9 @@ namespace {
 bool identity_key(const QString &key)
 {
 	const QString lower = key.toLower();
-	return lower.contains("killer") || lower.contains("victim") || lower.contains("player") ||
-	       lower.contains("summoner") || lower.contains("riotid") || lower.contains("puuid");
+	return lower.contains("killer") || lower.contains("victim") ||
+	       lower.contains("player") || lower.contains("summoner") ||
+	       lower.contains("riotid") || lower.contains("puuid");
 }
 } // namespace
 
@@ -25,7 +26,9 @@ QJsonObject sanitize_eventdata(const QJsonObject &payload)
 		const QJsonObject source = value.toObject();
 		QJsonObject event;
 		for (auto it = source.begin(); it != source.end(); ++it)
-			event.insert(it.key(), identity_key(it.key()) ? QJsonValue("redacted") : it.value());
+			event.insert(it.key(), identity_key(it.key())
+						       ? QJsonValue("redacted")
+						       : it.value());
 		events.append(event);
 	}
 	result.insert("Events", events);
@@ -58,14 +61,17 @@ void diagnostic_log::open()
 {
 	if (file_ || !enabled_)
 		return;
-	const QString root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
-			     "/league-game-reports/development-logs";
+	const QString root =
+		QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+		"/league-game-reports/development-logs";
 	if (!QDir().mkpath(root))
 		return;
-	const QString stamp = QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmsszzzZ");
+	const QString stamp =
+		QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmsszzzZ");
 	path_ = root + "/session-" + stamp + ".jsonl";
 	auto *candidate = new QFile(path_);
-	if (!candidate->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+	if (!candidate->open(QIODevice::WriteOnly | QIODevice::Append |
+			     QIODevice::Text)) {
 		delete candidate;
 		path_.clear();
 		return;
@@ -75,18 +81,21 @@ void diagnostic_log::open()
 	write("diagnostics", "session_started");
 }
 
-void diagnostic_log::write(const QString &component, const QString &event, QJsonObject fields)
+void diagnostic_log::write(const QString &component, const QString &event,
+			   QJsonObject fields)
 {
 	if (!enabled_)
 		return;
 	open();
 	if (!file_)
 		return;
-	fields.insert("timestamp_utc", QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+	fields.insert("timestamp_utc",
+		      QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
 	fields.insert("sequence", QString::number(++sequence_));
 	fields.insert("component", component);
 	fields.insert("event", event);
-	if (file_->write(QJsonDocument(fields).toJson(QJsonDocument::Compact) + '\n') < 0) {
+	if (file_->write(QJsonDocument(fields).toJson(QJsonDocument::Compact) + '\n') <
+	    0) {
 		file_->close();
 		delete file_;
 		file_ = nullptr;

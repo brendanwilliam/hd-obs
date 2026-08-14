@@ -68,7 +68,8 @@ public:
 		raw.sequence = produced.fetch_add(1, std::memory_order_relaxed) + 1;
 		raw.time_ns = os_gettime_ns();
 		raw.type = event->type;
-		if (event->type == EVENT_KEY_PRESSED || event->type == EVENT_KEY_RELEASED) {
+		if (event->type == EVENT_KEY_PRESSED ||
+		    event->type == EVENT_KEY_RELEASED) {
 			raw.code = event->data.keyboard.keycode;
 			raw.keychar = event->data.keyboard.keychar;
 		} else if (event->type >= EVENT_MOUSE_CLICKED) {
@@ -81,7 +82,8 @@ public:
 	}
 
 	void consume(const target &key, uint64_t &cursor, bool &discard_backlog,
-		     std::vector<input_data::trace_event> &events, input_data::button_map<uint16_t> &keyboard_out,
+		     std::vector<input_data::trace_event> &events,
+		     input_data::button_map<uint16_t> &keyboard_out,
 		     input_data::button_map<uint16_t> &mouse_out)
 	{
 		auto &group = groups[key];
@@ -96,8 +98,10 @@ public:
 			if (cursor < oldest)
 				cursor = oldest - 1;
 			if (cursor < group.latest_sequence) {
-				const size_t first = static_cast<size_t>(cursor - oldest + 1);
-				events.assign(group.events.begin() + static_cast<std::ptrdiff_t>(first),
+				const size_t first =
+					static_cast<size_t>(cursor - oldest + 1);
+				events.assign(group.events.begin() +
+						      static_cast<std::ptrdiff_t>(first),
 					      group.events.end());
 			}
 			cursor = group.latest_sequence;
@@ -135,7 +139,8 @@ private:
 			route(event, context, context_changed);
 	}
 
-	void route(const raw_event &raw, const uiohook::input_context &context, bool context_changed)
+	void route(const raw_event &raw, const uiohook::input_context &context,
+		   bool context_changed)
 	{
 		if (raw.type == EVENT_KEY_PRESSED || raw.type == EVENT_KEY_RELEASED)
 			keyboard[raw.code] = raw.type == EVENT_KEY_PRESSED;
@@ -163,8 +168,9 @@ private:
 		}
 	}
 
-	bool matches(const target &key, const raw_event &raw, const uiohook::input_context &context,
-		     bool context_changed, uint32_t &pointer_display) const
+	bool matches(const target &key, const raw_event &raw,
+		     const uiohook::input_context &context, bool context_changed,
+		     uint32_t &pointer_display) const
 	{
 		switch (key.type) {
 		case target_type::all:
@@ -173,17 +179,21 @@ private:
 			const bool motion = is_motion(raw.type);
 			if (motion && pointer_display == 0)
 				pointer_display = uiohook::display_at(raw.x, raw.y);
-			if ((motion ? pointer_display : context.focused_display_id) != key.display)
+			if ((motion ? pointer_display : context.focused_display_id) !=
+			    key.display)
 				return false;
 			return !key.rectangle_enabled || !motion ||
-			       (raw.x >= key.rectangle_left && raw.x <= key.rectangle_right &&
-				raw.y >= key.rectangle_top && raw.y <= key.rectangle_bottom);
+			       (raw.x >= key.rectangle_left &&
+				raw.x <= key.rectangle_right &&
+				raw.y >= key.rectangle_top &&
+				raw.y <= key.rectangle_bottom);
 		}
 		case target_type::application:
 			return !context_changed && !key.application_id.empty() &&
 			       context.application_id == key.application_id;
 		case target_type::window:
-			return !context_changed && key.window_id != 0 && context.application_id == key.application_id &&
+			return !context_changed && key.window_id != 0 &&
+			       context.application_id == key.application_id &&
 			       context.window_id == key.window_id;
 		}
 		return false;
@@ -210,9 +220,12 @@ broker &instance()
 
 bool target::operator==(const target &other) const
 {
-	return type == other.type && display == other.display && rectangle_enabled == other.rectangle_enabled &&
-	       rectangle_left == other.rectangle_left && rectangle_top == other.rectangle_top &&
-	       rectangle_right == other.rectangle_right && rectangle_bottom == other.rectangle_bottom &&
+	return type == other.type && display == other.display &&
+	       rectangle_enabled == other.rectangle_enabled &&
+	       rectangle_left == other.rectangle_left &&
+	       rectangle_top == other.rectangle_top &&
+	       rectangle_right == other.rectangle_right &&
+	       rectangle_bottom == other.rectangle_bottom &&
 	       application_id == other.application_id && window_id == other.window_id;
 }
 
@@ -222,7 +235,8 @@ void push(const uiohook_event *event)
 }
 
 void consume(const target &target, uint64_t &cursor, bool &discard_backlog,
-	     std::vector<input_data::trace_event> &events, input_data::button_map<uint16_t> &keyboard,
+	     std::vector<input_data::trace_event> &events,
+	     input_data::button_map<uint16_t> &keyboard,
 	     input_data::button_map<uint16_t> &mouse)
 {
 	instance().consume(target, cursor, discard_backlog, events, keyboard, mouse);

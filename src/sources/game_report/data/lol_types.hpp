@@ -7,6 +7,7 @@
 #include <QVector>
 
 #include "sources/game_report/collection/lol_v2_metrics.hpp"
+#include "sources/game_report/collection/lol_playback.hpp"
 
 namespace sources::lol_game_report {
 
@@ -59,6 +60,7 @@ struct report {
 	bool event_detail_truncated{};
 	QVector<intensity_sample> v2_intensity;
 	metric_summary v2_summary;
+	playback_stream playback;
 	QJsonArray local_gameplay_events;
 	QString player;
 	QString game_mode;
@@ -90,7 +92,9 @@ struct insight {
 
 QJsonObject to_json(const report &value);
 bool from_json(const QJsonObject &object, report &value);
-QVector<chapter> make_chapters(const QVector<stat_sample> &samples, const QVector<event> &events);
+QByteArray canonical_payload(QJsonObject value);
+QVector<chapter> make_chapters(const QVector<stat_sample> &samples,
+			       const QVector<event> &events);
 QString classify_event(const QString &event_name);
 QVector<insight> make_insights(const report &value);
 QVector<double> normalized_series(const QVector<double> &values, bool average_ratio);

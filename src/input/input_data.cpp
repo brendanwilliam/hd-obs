@@ -43,9 +43,11 @@ void input_data::copy(const input_data *other)
 		trace.clear();
 		trace_sequence = oldest - 1;
 	}
-	const size_t first_new = trace_sequence < oldest ? 0
-							 : std::min(other->trace.size(),
-								    static_cast<size_t>(trace_sequence - oldest + 1));
+	const size_t first_new =
+		trace_sequence < oldest
+			? 0
+			: std::min(other->trace.size(),
+				   static_cast<size_t>(trace_sequence - oldest + 1));
 	for (size_t index = first_new; index < other->trace.size(); ++index) {
 		trace.push_back(other->trace[index]);
 		if (trace.size() > trace_capacity)
@@ -75,13 +77,16 @@ void input_data::dispatch_uiohook_event(const uiohook_event *event, trace_event 
 		last_wheel_event = event->data.wheel;
 		last_wheel_event_time = os_gettime_ns();
 		last_event = event->time;
-	} else if (event->type == EVENT_MOUSE_DRAGGED || event->type == EVENT_MOUSE_MOVED) {
+	} else if (event->type == EVENT_MOUSE_DRAGGED ||
+		   event->type == EVENT_MOUSE_MOVED) {
 		last_mouse_movement = event->data.mouse;
 		last_event = event->time;
-	} else if (event->type == EVENT_KEY_PRESSED || event->type == EVENT_KEY_RELEASED) {
+	} else if (event->type == EVENT_KEY_PRESSED ||
+		   event->type == EVENT_KEY_RELEASED) {
 		keyboard[event->data.keyboard.keycode] = event->type == EVENT_KEY_PRESSED;
 		last_event = event->time;
-	} else if (event->type == EVENT_MOUSE_PRESSED || event->type == EVENT_MOUSE_RELEASED) {
+	} else if (event->type == EVENT_MOUSE_PRESSED ||
+		   event->type == EVENT_MOUSE_RELEASED) {
 		last_event = event->time;
 		mouse[event->data.mouse.button] = event->type == EVENT_MOUSE_PRESSED;
 	}

@@ -22,24 +22,30 @@ double canonical_height(const grid &value)
 QPointF center(const grid &value, int column, int row)
 {
 	const double hex_radius = radius(value);
-	return {root_three * hex_radius * (column + (row & 1 ? 0.5 : 0.0)), hex_radius * (1.0 + 1.5 * row)};
+	return {root_three * hex_radius * (column + (row & 1 ? 0.5 : 0.0)),
+		hex_radius * (1.0 + 1.5 * row)};
 }
 
 cell nearest_cell(const grid &value, const QPointF &point)
 {
 	const double hex_radius = radius(value);
-	const int approximate_row = int(std::floor((point.y() / hex_radius - 1.0) / 1.5 + 0.5));
+	const int approximate_row =
+		int(std::floor((point.y() / hex_radius - 1.0) / 1.5 + 0.5));
 	cell result{};
 	double best_distance = std::numeric_limits<double>::infinity();
 	for (int row = approximate_row - 2; row <= approximate_row + 2; ++row) {
 		const double offset = row & 1 ? 0.5 : 0.0;
-		const int approximate_column = int(std::floor(point.x() / (root_three * hex_radius) - offset + 0.5));
-		for (int column = approximate_column - 2; column <= approximate_column + 2; ++column) {
+		const int approximate_column = int(
+			std::floor(point.x() / (root_three * hex_radius) - offset + 0.5));
+		for (int column = approximate_column - 2;
+		     column <= approximate_column + 2; ++column) {
 			const QPointF candidate = center(value, column, row);
-			const double distance = std::hypot(point.x() - candidate.x(), point.y() - candidate.y());
+			const double distance = std::hypot(point.x() - candidate.x(),
+							   point.y() - candidate.y());
 			if (distance < best_distance ||
 			    (distance == best_distance &&
-			     (row < result.row || (row == result.row && column < result.column)))) {
+			     (row < result.row ||
+			      (row == result.row && column < result.column)))) {
 				result = {column, row};
 				best_distance = distance;
 			}
@@ -51,8 +57,10 @@ cell nearest_cell(const grid &value, const QPointF &point)
 QVector<cell> visible_cells(const grid &value)
 {
 	const double hex_radius = radius(value);
-	const int columns = std::max(1, int(std::ceil(100.0 / (root_three * hex_radius))) + 1);
-	const int rows = std::max(1, int(std::ceil(canonical_height(value) / (1.5 * hex_radius))) + 1);
+	const int columns =
+		std::max(1, int(std::ceil(100.0 / (root_three * hex_radius))) + 1);
+	const int rows = std::max(
+		1, int(std::ceil(canonical_height(value) / (1.5 * hex_radius))) + 1);
 	QVector<cell> result;
 	result.reserve(qsizetype(columns) * qsizetype(rows));
 	for (int row = 0; row < rows; ++row)

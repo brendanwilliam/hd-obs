@@ -17,7 +17,8 @@ bool obs_module_load(void)
 {
 	sources::register_lol_performance_dashboard_source();
 	uiohook::start();
-	blog(LOG_INFO, "[input-activity] loaded successfully (version %s)", PLUGIN_VERSION);
+	blog(LOG_INFO, "[input-activity] loaded successfully (version %s)",
+	     PLUGIN_VERSION);
 	return true;
 }
 

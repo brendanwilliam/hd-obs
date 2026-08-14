@@ -32,13 +32,18 @@ Keep global input capture privacy-safe: preserve the actionable Accessibility wa
 
 ## Code organization
 
-Keep new and materially refactored implementation modules under 400 lines. When a file approaches
-that limit, split it by a stable responsibility (shared state, one OBS source type, rendering, or
-properties) rather than by arbitrary line ranges. Group every `src/sources/` implementation in a
-feature or shared-responsibility subdirectory; do not add implementation files directly to
-`src/sources/`. Put cross-mode setting keys, shared rendering helpers, and migrations in one owned
-module; do not duplicate them across mode files. Use `skills/check-code-size` before handing off a
-refactor or adding a substantial implementation file.
+Keep new and materially refactored implementation modules at or below 800 nonblank lines. Treat
+that as a ceiling, not a target: split a file by stable responsibility (shared state, one OBS source
+type, rendering, or properties) when that makes ownership clearer. Group every `src/sources/`
+implementation in a feature or shared-responsibility subdirectory; do not add implementation files
+directly to `src/sources/`. Put cross-mode setting keys, shared rendering helpers, and migrations in
+one owned module; do not duplicate them across mode files. Use `skills/check-code-size` before
+handing off a refactor or adding a substantial implementation file.
+
+Format authored C, C++, Objective-C++, CMake, and YAML for readability. Keep code lines at or below
+90 characters, use logical line breaks and indentation rather than dense one-line declarations or
+expressions, and keep related statements visually grouped with blank lines. Do not evade the module
+limit by compressing code or removing useful whitespace.
 
 Use project-root-relative paths for internal C, C++, and Objective-C++ includes. The build exposes
 `src` as an include root, so write paths such as `sources/dashboard/rendering/lol_visuals.hpp`,

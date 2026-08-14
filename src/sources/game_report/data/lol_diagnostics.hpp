@@ -15,7 +15,8 @@ public:
 	void set_enabled(bool enabled);
 	bool enabled() const { return enabled_; }
 	QString path() const { return path_; }
-	void write(const QString &component, const QString &event, QJsonObject fields = {});
+	void write(const QString &component, const QString &event,
+		   QJsonObject fields = {});
 	void close_and_remove();
 
 private:

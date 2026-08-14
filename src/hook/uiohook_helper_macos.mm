@@ -33,22 +33,24 @@ namespace uiohook {
             return 0;
 
         CFTypeRef focused_window = nullptr;
-        const AXError focused_window_result =
-            AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute, &focused_window);
+        const AXError focused_window_result = AXUIElementCopyAttributeValue(
+            application, kAXFocusedWindowAttribute, &focused_window);
         CFRelease(application);
         if (focused_window_result != kAXErrorSuccess || !focused_window)
             return 0;
 
         CFTypeRef window_number = nullptr;
-        const AXError window_number_result = AXUIElementCopyAttributeValue(static_cast<AXUIElementRef>(focused_window),
-                                                                           CFSTR("AXWindowNumber"), &window_number);
+        const AXError window_number_result =
+            AXUIElementCopyAttributeValue(static_cast<AXUIElementRef>(focused_window),
+                                          CFSTR("AXWindowNumber"), &window_number);
         CFRelease(focused_window);
         if (window_number_result != kAXErrorSuccess || !window_number)
             return 0;
 
         int64_t number {};
         const bool converted = CFGetTypeID(window_number) == CFNumberGetTypeID() &&
-                               CFNumberGetValue(static_cast<CFNumberRef>(window_number), kCFNumberSInt64Type, &number);
+                               CFNumberGetValue(static_cast<CFNumberRef>(window_number),
+                                                kCFNumberSInt64Type, &number);
         CFRelease(window_number);
         return converted && number > 0 ? static_cast<uint64_t>(number) : 0;
     }
@@ -57,7 +59,8 @@ namespace uiohook {
     {
         input_context context {};
         @autoreleasepool {
-            NSRunningApplication *application = NSWorkspace.sharedWorkspace.frontmostApplication;
+            NSRunningApplication *application =
+                NSWorkspace.sharedWorkspace.frontmostApplication;
             if (!application)
                 return context;
             const pid_t process_id = application.processIdentifier;
@@ -66,23 +69,28 @@ namespace uiohook {
                 context.application_id = bundle_identifier.UTF8String;
             const uint64_t focused_window = focused_window_id(process_id);
             CFArrayRef windows = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+                kCGNullWindowID);
             if (!windows)
                 return context;
             for (NSDictionary *window in (__bridge NSArray *) windows) {
                 if ([window[(id) kCGWindowOwnerPID] intValue] != process_id ||
                     [window[(id) kCGWindowLayer] intValue] != 0)
                     continue;
-                const uint64_t window_id = [window[(id) kCGWindowNumber] unsignedLongLongValue];
+                const uint64_t window_id =
+                    [window[(id) kCGWindowNumber] unsignedLongLongValue];
                 if (focused_window && window_id != focused_window)
                     continue;
                 context.window_id = window_id;
                 CGRect bounds {};
-                if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
-                                                           &bounds)) {
+                if (CGRectMakeWithDictionaryRepresentation(
+                        (__bridge CFDictionaryRef) window[(id) kCGWindowBounds],
+                        &bounds)) {
                     CGDirectDisplayID display {};
                     uint32_t count {};
-                    if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count)
+                    if (CGGetDisplaysWithRect(bounds, 1, &display, &count) ==
+                            kCGErrorSuccess &&
+                        count)
                         context.focused_display_id = display;
                 }
                 break;
@@ -96,7 +104,11 @@ namespace uiohook {
     {
         CGDirectDisplayID display {};
         uint32_t count {};
-        return CGGetDisplaysWithPoint(CGPointMake(x, y), 1, &display, &count) == kCGErrorSuccess && count ? display : 0;
+        return CGGetDisplaysWithPoint(CGPointMake(x, y), 1, &display, &count) ==
+                           kCGErrorSuccess &&
+                       count
+                   ? display
+                   : 0;
     }
 
     static void process_event(uiohook_event *event)
@@ -121,7 +133,8 @@ namespace uiohook {
     }
 
     extern "C" {
-        static void logger_proc(unsigned int level, void *, const char *format, va_list args)
+        static void logger_proc(unsigned int level, void *, const char *format,
+                                va_list args)
         {
             switch (level) {
                 default:
@@ -172,10 +185,12 @@ namespace uiohook {
         if (hook_thread_status)
             *hook_thread_status = UIOHOOK_FAILURE;
         if (hook_thread_status &&
-            pthread_create(&hook_thread, &hook_thread_attr, hook_thread_proc, hook_thread_status) == 0) {
+            pthread_create(&hook_thread, &hook_thread_attr, hook_thread_proc,
+                           hook_thread_status) == 0) {
             const sched_param param = {.sched_priority = priority};
             if (pthread_setschedparam(hook_thread, SCHED_OTHER, &param) != 0) {
-                blog(LOG_WARNING, "[input-activity] Could not set uiohook thread priority.");
+                blog(LOG_WARNING,
+                     "[input-activity] Could not set uiohook thread priority.");
             }
 
             pthread_cond_wait(&hook_control_cond, &hook_control_mutex);
@@ -204,9 +219,10 @@ namespace uiohook {
             return;
 
         if (!AXIsProcessTrusted()) {
-            blog(LOG_WARNING,
-                 "[input-activity] macOS Accessibility permission is required for keyboard and mouse capture. "
-                 "Enable OBS in System Settings > Privacy & Security > Accessibility, then restart OBS.");
+            blog(
+                LOG_WARNING,
+                "[input-activity] macOS Accessibility permission is required for keyboard and mouse capture. "
+                "Enable OBS in System Settings > Privacy & Security > Accessibility, then restart OBS.");
             return;
         }
 
@@ -231,19 +247,30 @@ namespace uiohook {
                     status);
                 break;
             case UIOHOOK_ERROR_CREATE_EVENT_PORT:
-                blog(LOG_ERROR, "[input-activity] Failed to create macOS input event port. (%#X)", status);
+                blog(LOG_ERROR,
+                     "[input-activity] Failed to create macOS input event port. (%#X)",
+                     status);
                 break;
             case UIOHOOK_ERROR_CREATE_RUN_LOOP_SOURCE:
-                blog(LOG_ERROR, "[input-activity] Failed to create macOS input run loop source. (%#X)", status);
+                blog(
+                    LOG_ERROR,
+                    "[input-activity] Failed to create macOS input run loop source. (%#X)",
+                    status);
                 break;
             case UIOHOOK_ERROR_GET_RUNLOOP:
-                blog(LOG_ERROR, "[input-activity] Failed to acquire macOS input run loop. (%#X)", status);
+                blog(LOG_ERROR,
+                     "[input-activity] Failed to acquire macOS input run loop. (%#X)",
+                     status);
                 break;
             case UIOHOOK_ERROR_CREATE_OBSERVER:
-                blog(LOG_ERROR, "[input-activity] Failed to create macOS input run loop observer. (%#X)", status);
+                blog(
+                    LOG_ERROR,
+                    "[input-activity] Failed to create macOS input run loop observer. (%#X)",
+                    status);
                 break;
             default:
-                blog(LOG_ERROR, "[input-activity] Failed to start macOS input hook. (%#X)", status);
+                blog(LOG_ERROR,
+                     "[input-activity] Failed to start macOS input hook. (%#X)", status);
                 break;
         }
 
@@ -278,8 +305,9 @@ namespace uiohook {
             const int width = static_cast<int>(bounds.size.width);
             const int height = static_cast<int>(bounds.size.height);
             result.push_back({displays[index],
-                              "Display " + std::to_string(index + 1) + " (" + std::to_string(width) + "x" +
-                                  std::to_string(height) + ")",
+                              "Display " + std::to_string(index + 1) + " (" +
+                                  std::to_string(width) + "x" + std::to_string(height) +
+                                  ")",
                               width, height});
         }
         return result;
@@ -289,7 +317,8 @@ namespace uiohook {
     {
         std::vector<target_application> result;
         @autoreleasepool {
-            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
+            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace
+                     .runningApplications) {
                 NSString *bundle_identifier = application.bundleIdentifier;
                 if (!bundle_identifier)
                     continue;
@@ -303,17 +332,23 @@ namespace uiohook {
     static bool is_league_game(NSRunningApplication *application)
     {
         const NSString *path = application.executableURL.path;
-        return [application.localizedName isEqualToString:@"League Of Legends"] ||
-               [path hasSuffix:@"Contents/LoL/Game/LeagueOfLegends.app/Contents/MacOS/LeagueofLegends"];
+        return
+            [application.localizedName isEqualToString:@"League Of Legends"] ||
+            [path
+                hasSuffix:
+                    @"Contents/LoL/Game/LeagueOfLegends.app/Contents/MacOS/LeagueofLegends"];
     }
 
     bool league_game_is_running()
     {
         @autoreleasepool {
-            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
+            for (NSRunningApplication *application in NSWorkspace.sharedWorkspace
+                     .runningApplications) {
                 const NSString *path = application.executableURL.path;
                 if (is_league_game(application) ||
-                    [path hasSuffix:@"Contents/LoL/League of Legends.app/Contents/MacOS/LeagueClientUx"])
+                    [path
+                        hasSuffix:
+                            @"Contents/LoL/League of Legends.app/Contents/MacOS/LeagueClientUx"])
                     return true;
             }
         }
@@ -332,23 +367,29 @@ namespace uiohook {
         std::vector<target_window> result;
         @autoreleasepool {
             CFArrayRef windows = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+                kCGNullWindowID);
             if (!windows)
                 return result;
             for (NSDictionary *window in (__bridge NSArray *) windows) {
                 if ([window[(id) kCGWindowLayer] intValue] != 0)
                     continue;
                 NSRunningApplication *application = [NSRunningApplication
-                    runningApplicationWithProcessIdentifier:[window[(id) kCGWindowOwnerPID] intValue]];
+                    runningApplicationWithProcessIdentifier:[window[(id) kCGWindowOwnerPID]
+                                                                intValue]];
                 NSString *bundle_identifier = application.bundleIdentifier;
                 if (!bundle_identifier)
                     continue;
-                NSString *application_name = application.localizedName ?: bundle_identifier;
+                NSString *application_name = application.localizedName
+                                                 ?: bundle_identifier;
                 NSString *window_name = window[(id) kCGWindowName];
                 NSString *label = window_name.length
-                                      ? [NSString stringWithFormat:@"%@ — %@", application_name, window_name]
+                                      ? [NSString stringWithFormat:@"%@ — %@",
+                                                                   application_name,
+                                                                   window_name]
                                       : application_name;
-                result.push_back({bundle_identifier.UTF8String, [window[(id) kCGWindowNumber] unsignedLongLongValue],
+                result.push_back({bundle_identifier.UTF8String,
+                                  [window[(id) kCGWindowNumber] unsignedLongLongValue],
                                   label.UTF8String});
             }
             CFRelease(windows);

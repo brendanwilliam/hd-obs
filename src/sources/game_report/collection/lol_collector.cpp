@@ -65,7 +65,8 @@ public:
 	void set_development_logs(bool enabled)
 	{
 		diagnostics_.set_enabled(enabled);
-		diagnostics_.write("collector", "development_logs_changed", {{"enabled", enabled}});
+		diagnostics_.write("collector", "development_logs_changed",
+				   {{"enabled", enabled}});
 	}
 	bool development_logs_enabled() const { return diagnostics_.enabled(); }
 	QString development_log_path() const { return diagnostics_.path(); }
@@ -78,7 +79,10 @@ public:
 	{
 		champion_callback_ = std::move(callback);
 	}
-	void set_gameplay_actions(const QHash<QString, QString> &actions) { gameplay_actions_ = actions; }
+	void set_gameplay_actions(const QHash<QString, QString> &actions)
+	{
+		gameplay_actions_ = actions;
+	}
 	void set_enabled(bool enabled)
 	{
 		enabled_ = enabled;
@@ -87,7 +91,8 @@ public:
 			invalid_polls_ = 0;
 			metrics_.reset();
 			state_ = collection_state::empty;
-			diagnostics_.write("collector", "report_discarded", {{"reason", "analysis_disabled"}});
+			diagnostics_.write("collector", "report_discarded",
+					   {{"reason", "analysis_disabled"}});
 		}
 	}
 	void consume_input(const std::vector<input_data::trace_event> &events)
@@ -113,7 +118,8 @@ private:
 		if (pending_)
 			return;
 		pending_ = true;
-		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/allgamedata"));
+		QNetworkRequest request(
+			QUrl("https://127.0.0.1:2999/liveclientdata/allgamedata"));
 		request.setTransferTimeout(1200);
 		QSslConfiguration ssl = request.sslConfiguration();
 		ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
@@ -123,13 +129,18 @@ private:
 		QObject::connect(reply, &QNetworkReply::finished, reply, [this, reply] {
 			pending_ = false;
 			const bool success = reply->error() == QNetworkReply::NoError;
-			const QJsonObject data = success ? QJsonDocument::fromJson(reply->readAll()).object()
-							 : QJsonObject{};
+			const QJsonObject data =
+				success ? QJsonDocument::fromJson(reply->readAll())
+						  .object()
+					: QJsonObject{};
 			diagnostics_.write(
 				"collector", "endpoint_completed",
 				{{"endpoint", "allgamedata"},
 				 {"success", success},
-				 {"http_status", reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()}});
+				 {"http_status",
+				  reply->attribute(
+					       QNetworkRequest::HttpStatusCodeAttribute)
+					  .toInt()}});
 			process(success ? parse_game_context(data) : game_context{});
 			reply->deleteLater();
 		});
@@ -138,7 +149,8 @@ private:
 	{
 		if (!enabled_) {
 			diagnostics_.write("collector", "game_ignored",
-					   {{"reason", "analysis_disabled"}, {"active", active_}});
+					   {{"reason", "analysis_disabled"},
+					    {"active", active_}});
 			return;
 		}
 		if (!supported_game(context)) {
@@ -152,7 +164,8 @@ private:
 					    {"mode", context.game_mode},
 					    {"invalid_polls", invalid_polls_}});
 			if (active_ && (context.game_end || ++invalid_polls_ >= 3))
-				finalize(context.game_end ? "game_end" : "invalid_game_state");
+				finalize(context.game_end ? "game_end"
+							  : "invalid_game_state");
 			return;
 		}
 		if (context.champion != active_champion_) {
@@ -173,7 +186,8 @@ private:
 		last_game_seconds_ = context.game_time;
 		anchor_monotonic_ns_ = os_gettime_ns();
 		metrics_.evaluate_through(int(std::floor(context.game_time)));
-		if (last_checkpoint_seconds_ < 0 || context.game_time - last_checkpoint_seconds_ >= 5.0)
+		if (last_checkpoint_seconds_ < 0 ||
+		    context.game_time - last_checkpoint_seconds_ >= 5.0)
 			checkpoint(false);
 		if (context.game_end)
 			finalize("game_end");
@@ -182,8 +196,8 @@ private:
 	{
 		report_ = {};
 		report_.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-		report_.observed_started_at =
-			QDateTime::currentDateTimeUtc().addMSecs(-qRound64(context.game_time * 1000.0));
+		report_.observed_started_at = QDateTime::currentDateTimeUtc().addMSecs(
+			-qRound64(context.game_time * 1000.0));
 		report_.riot_id_game_name = context.riot_id_game_name;
 		report_.riot_id_tag_line = context.riot_id_tag_line;
 		report_.champion = context.champion;
@@ -196,6 +210,7 @@ private:
 		last_game_seconds_ = context.game_time;
 		last_checkpoint_seconds_ = -1.0;
 		anchor_monotonic_ns_ = os_gettime_ns();
+		last_playback_pointer_.reset();
 		active_ = true;
 		state_ = collection_state::recording;
 		diagnostics_.write("collector", "report_started",
@@ -208,28 +223,53 @@ private:
 	{
 		if (time_ns <= anchor_monotonic_ns_)
 			return last_game_seconds_;
-		return last_game_seconds_ + double(time_ns - anchor_monotonic_ns_) / double(second_ns);
+		return last_game_seconds_ +
+		       double(time_ns - anchor_monotonic_ns_) / double(second_ns);
 	}
-	bool in_frame(const input_data::trace_event &event) const { return game_frame_.contains(event.x, event.y); }
+	bool in_frame(const input_data::trace_event &event) const
+	{
+		return game_frame_.contains(event.x, event.y);
+	}
 	QPointF point_for(const input_data::trace_event &event) const
 	{
-		return {double(event.x - game_frame_.left()) / std::max(1, game_frame_.width()),
-			double(event.y - game_frame_.top()) / std::max(1, game_frame_.height())};
+		return {double(event.x - game_frame_.left()) /
+				std::max(1, game_frame_.width()),
+			double(event.y - game_frame_.top()) /
+				std::max(1, game_frame_.height())};
 	}
-	void append_local_event(const QString &kind, const QString &button, const input_data::trace_event &event,
-				double seconds)
+	void append_local_event(const QString &kind, const QString &button,
+				const input_data::trace_event &event, double seconds)
 	{
 		if (!in_frame(event))
 			return;
 		const QPointF point = point_for(event);
-		report_.local_gameplay_events.append(
-			QJsonObject{{"sequence", QString::number(event.sequence)},
-				    {"monotonic_time_ns", QString::number(event.time_ns)},
-				    {"game_time_ms", qRound64(seconds * 1000.0)},
-				    {"kind", kind},
-				    {"action", button + "_click"},
-				    {"button", button},
-				    {"pointer", QJsonObject{{"x", point.x()}, {"y", point.y()}}}});
+		report_.local_gameplay_events.append(QJsonObject{
+			{"sequence", QString::number(event.sequence)},
+			{"monotonic_time_ns", QString::number(event.time_ns)},
+			{"game_time_ms", qRound64(seconds * 1000.0)},
+			{"kind", kind},
+			{"action", button + "_click"},
+			{"button", button},
+			{"pointer", QJsonObject{{"x", point.x()}, {"y", point.y()}}}});
+	}
+	bool playback_anchor_is_current(const input_data::trace_event &event)
+	{
+		if (event.time_ns >= anchor_monotonic_ns_ &&
+		    event.time_ns - anchor_monotonic_ns_ <= 2 * second_ns)
+			return true;
+		report_.playback.truncated = true;
+		++report_.playback.omitted_record_count;
+		return false;
+	}
+	void append_playback(playback_kind kind, const input_data::trace_event &event,
+			     double seconds, std::optional<QPointF> pointer = {},
+			     const QString &action = {})
+	{
+		if (!playback_anchor_is_current(event))
+			return;
+		append_playback_record(report_.playback,
+				       {qRound64(seconds * 1000.0), kind,
+					std::move(pointer), action});
 	}
 	void consume_event(const input_data::trace_event &event)
 	{
@@ -243,34 +283,55 @@ private:
 			return;
 		}
 		if (event.type == EVENT_KEY_PRESSED) {
-			const QString chord = gameplay_chord(pressed_modifiers_, event.code);
+			const QString chord =
+				gameplay_chord(pressed_modifiers_, event.code);
 			const QString action = gameplay_actions_.value(chord);
 			if (!action.isEmpty()) {
-				metrics_.record_action(seconds, gameplay_input::bound_key);
-				report_.local_gameplay_events.append(
-					QJsonObject{{"sequence", QString::number(event.sequence)},
-						    {"monotonic_time_ns", QString::number(event.time_ns)},
-						    {"game_time_ms", qRound64(seconds * 1000.0)},
-						    {"kind", "bound_key"},
-						    {"action", action},
-						    {"chord", chord}});
+				metrics_.record_action(seconds,
+						       gameplay_input::bound_key);
+				append_playback(playback_kind::gameplay_action, event,
+						seconds, last_playback_pointer_, action);
+				report_.local_gameplay_events.append(QJsonObject{
+					{"sequence", QString::number(event.sequence)},
+					{"monotonic_time_ns",
+					 QString::number(event.time_ns)},
+					{"game_time_ms", qRound64(seconds * 1000.0)},
+					{"kind", "bound_key"},
+					{"action", action},
+					{"chord", chord}});
 			}
 			return;
 		}
-		if (event.type == EVENT_MOUSE_MOVED || event.type == EVENT_MOUSE_DRAGGED) {
-			metrics_.record_motion(seconds, point_for(event), in_frame(event));
+		if (event.type == EVENT_MOUSE_MOVED ||
+		    event.type == EVENT_MOUSE_DRAGGED) {
+			const bool visible = in_frame(event);
+			const QPointF point = point_for(event);
+			metrics_.record_motion(seconds, point, visible);
+			if (visible && playback_anchor_is_current(event)) {
+				last_playback_pointer_ = point;
+				append_playback_record(report_.playback,
+						       {qRound64(seconds * 1000.0),
+							playback_kind::pointer_sample,
+							point});
+			}
 			return;
 		}
 		if (event.type != EVENT_MOUSE_PRESSED || !in_frame(event))
 			return;
 		if (event.code == MOUSE_BUTTON1) {
 			metrics_.record_action(seconds, gameplay_input::left_click);
+			append_playback(playback_kind::left_click, event, seconds,
+					point_for(event));
 			append_local_event("mouse_button", "left", event, seconds);
 		} else if (event.code == MOUSE_BUTTON2) {
 			metrics_.record_action(seconds, gameplay_input::right_click);
+			append_playback(playback_kind::right_click, event, seconds,
+					point_for(event));
 			append_local_event("mouse_button", "right", event, seconds);
 		} else if (event.code == MOUSE_BUTTON3) {
 			metrics_.record_action(seconds, gameplay_input::middle_click);
+			append_playback(playback_kind::middle_click, event, seconds,
+					point_for(event));
 			append_local_event("mouse_button", "middle", event, seconds);
 		}
 	}
@@ -280,7 +341,8 @@ private:
 			return;
 		state_ = collection_state::finalizing;
 		metrics_.evaluate_through(int(std::floor(last_game_seconds_)));
-		report_.duration_seconds = std::max(1, int(std::ceil(last_game_seconds_)));
+		report_.duration_seconds =
+			std::max(1, int(std::ceil(last_game_seconds_)));
 		report_.completed_at = QDateTime::currentDateTimeUtc();
 		report_.v2_intensity = metrics_.intensity();
 		report_.v2_summary = metrics_.summary();
@@ -301,7 +363,8 @@ private:
 		if (!active_ || report_.id.isEmpty())
 			return;
 		report snapshot = report_;
-		snapshot.duration_seconds = std::max(1, int(std::ceil(last_game_seconds_)));
+		snapshot.duration_seconds =
+			std::max(1, int(std::ceil(last_game_seconds_)));
 		snapshot.completed_at = QDateTime::currentDateTimeUtc();
 		snapshot.v2_intensity = metrics_.intensity();
 		snapshot.v2_summary = metrics_.summary();
@@ -309,15 +372,17 @@ private:
 			snapshot.complete = false;
 		if (!checkpoint_store_)
 			checkpoint_store_ = std::make_unique<session_store>(
-				QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+				QStandardPaths::writableLocation(
+					QStandardPaths::AppDataLocation) +
 				"/league-game-reports");
-		checkpoint_store_->save_checkpoint(
-			{snapshot, upload_state::pending, QDateTime::currentDateTimeUtc(), 0});
+		checkpoint_store_->save_checkpoint({snapshot, upload_state::pending,
+						    QDateTime::currentDateTimeUtc(), 0});
 		last_checkpoint_seconds_ = last_game_seconds_;
 	}
 	QString unsupported_reason(const game_context &context) const
 	{
-		if (context.riot_id_game_name.isEmpty() || context.riot_id_tag_line.isEmpty())
+		if (context.riot_id_game_name.isEmpty() ||
+		    context.riot_id_tag_line.isEmpty())
 			return "missing_riot_id";
 		if (context.map_number != 11)
 			return "unsupported_map";
@@ -347,6 +412,7 @@ private:
 	bool active_{};
 	bool enabled_{};
 	QString active_champion_;
+	std::optional<QPointF> last_playback_pointer_;
 };
 
 #include "sources/game_report/collection/lol_shared.inc"
