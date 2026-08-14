@@ -174,6 +174,9 @@ if(BUILD_TESTING)
   )
   target_link_libraries(lol-game-report-test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Widgets)
   target_include_directories(lol-game-report-test PRIVATE src deps/libuiohook/include)
+  target_compile_definitions(lol-game-report-test PRIVATE
+    HD_OBS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+  )
   target_compile_features(lol-game-report-test PRIVATE cxx_std_17)
   add_test(NAME lol-game-report COMMAND lol-game-report-test)
   add_executable(

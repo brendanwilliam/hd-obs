@@ -1,7 +1,9 @@
 #include "sources/game_report/data/lol_types.hpp"
 
 #include <QJsonArray>
+#include <QCryptographicHash>
 #include <QJsonDocument>
+#include <QFile>
 #include <cassert>
 
 void run_playback_tests();
@@ -55,6 +57,19 @@ int main()
 	QJsonObject reordered{{"z", 1}, {"a", QJsonObject{{"z", 1}, {"a", 2}}}};
 	QJsonObject ordered{{"a", QJsonObject{{"a", 2}, {"z", 1}}}, {"z", 1}};
 	assert(canonical_payload(reordered) == canonical_payload(ordered));
+	QFile fixture(QStringLiteral(HD_OBS_SOURCE_DIR
+				     "/tests/fixtures/hands-diff/v3-playback.json"));
+	assert(fixture.open(QIODevice::ReadOnly));
+	const QJsonObject fixture_payload =
+		QJsonDocument::fromJson(fixture.readAll()).object();
+	assert(fixture_payload["payload_hash"].isString());
+	assert(QString::fromLatin1(
+		       QCryptographicHash::hash(canonical_payload(fixture_payload),
+						QCryptographicHash::Sha256)
+			       .toHex()) == fixture_payload["payload_hash"].toString());
+	report fixture_report;
+	assert(from_json(fixture_payload, fixture_report));
+	assert(fixture_report.playback.records.size() == 4);
 	run_playback_tests();
 	return 0;
 }

@@ -12,6 +12,8 @@
 !/src
 !/tests
 !/tests/**
+!/tests/fixtures
+!/tests/fixtures/**
 !.clang-format
 !.gersemirc
 !.gitignore
