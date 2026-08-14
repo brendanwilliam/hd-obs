@@ -41,7 +41,9 @@ void load(settings &value)
 	config_t *config{};
 	if (config_open(&config, path, CONFIG_OPEN_EXISTING) == CONFIG_SUCCESS) {
 		if (config_has_user_value(config, section, radius_key)) {
-			value.radius = std::clamp(config_get_double(config, section, radius_key), 0.1, 100.0);
+			value.radius =
+				std::clamp(config_get_double(config, section, radius_key),
+					   0.1, 100.0);
 			value.migrated = true;
 		}
 		config_close(config);
@@ -91,7 +93,9 @@ void migrate_legacy_radius(int legacy_radius_pixels, int content_width_pixels)
 	load(value);
 	if (value.migrated)
 		return;
-	value.radius = std::clamp(100.0 * std::max(1, legacy_radius_pixels) / content_width_pixels, 0.1, 100.0);
+	value.radius = std::clamp(100.0 * std::max(1, legacy_radius_pixels) /
+					  content_width_pixels,
+				  0.1, 100.0);
 	value.migrated = true;
 	save(value);
 }

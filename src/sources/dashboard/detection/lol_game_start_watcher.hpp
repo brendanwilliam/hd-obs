@@ -27,7 +27,8 @@ class lol_dashboard_game_start_watcher {
 public:
 	lol_dashboard_game_start_watcher();
 	~lol_dashboard_game_start_watcher();
-	lol_dashboard_game_start_watcher(const lol_dashboard_game_start_watcher &) = delete;
+	lol_dashboard_game_start_watcher(const lol_dashboard_game_start_watcher &) =
+		delete;
 
 	bool consume_start(uint64_t &cursor) const;
 

@@ -3,6 +3,9 @@
 ## Policy
 
 Use `feature/<kebab-title>`, `fix/<kebab-title>`, or `chore/<kebab-title>` branches from current `develop`.
+For selected GitHub Issues, include the issue number as
+`feature/<issue>-<kebab-title>`, `fix/<issue>-<kebab-title>`, or
+`chore/<issue>-<kebab-title>`.
 Target `develop` through a pull request for ordinary changes; it is the shared integration branch for parallel
 work. Promote `develop` to `main` through a separate pull request only when the integrated set is ready.
 Never push directly to either protected branch, and never bypass `main`'s required checks on the promotion PR.
@@ -29,13 +32,18 @@ Keep global input capture privacy-safe: preserve the actionable Accessibility wa
 
 ## Code organization
 
-Keep new and materially refactored implementation modules under 400 lines. When a file approaches
-that limit, split it by a stable responsibility (shared state, one OBS source type, rendering, or
-properties) rather than by arbitrary line ranges. Group every `src/sources/` implementation in a
-feature or shared-responsibility subdirectory; do not add implementation files directly to
-`src/sources/`. Put cross-mode setting keys, shared rendering helpers, and migrations in one owned
-module; do not duplicate them across mode files. Use `skills/check-code-size` before handing off a
-refactor or adding a substantial implementation file.
+Keep new and materially refactored implementation modules at or below 800 nonblank lines. Treat
+that as a ceiling, not a target: split a file by stable responsibility (shared state, one OBS source
+type, rendering, or properties) when that makes ownership clearer. Group every `src/sources/`
+implementation in a feature or shared-responsibility subdirectory; do not add implementation files
+directly to `src/sources/`. Put cross-mode setting keys, shared rendering helpers, and migrations in
+one owned module; do not duplicate them across mode files. Use `skills/check-code-size` before
+handing off a refactor or adding a substantial implementation file.
+
+Format authored C, C++, Objective-C++, CMake, and YAML for readability. Keep code lines at or below
+90 characters, use logical line breaks and indentation rather than dense one-line declarations or
+expressions, and keep related statements visually grouped with blank lines. Do not evade the module
+limit by compressing code or removing useful whitespace.
 
 Use project-root-relative paths for internal C, C++, and Objective-C++ includes. The build exposes
 `src` as an include root, so write paths such as `sources/dashboard/rendering/lol_visuals.hpp`,
@@ -70,21 +78,34 @@ changes, or when explicitly asked to audit OBS documentation.
 
 ## Local development plugin refresh
 
-After every commit, rebuild and reinstall the macOS plugin from the **currently checked-out working
+After every commit, rebuild and refresh the macOS plugin from the **currently checked-out working
 branch** before handing off work for local testing. Never check out, build, or install `main`, `release`,
 or another branch as a substitute for the branch containing the change.
 
-First verify the current branch with `git branch --show-current`. Use one matching CMake configuration
-for both build and installation; the normal development configuration is `RelWithDebInfo`:
+First verify the current branch with `git branch --show-current`. The normal development configuration is
+`RelWithDebInfo`:
 
 ```sh
 cmake --preset macos
 cmake --build --preset macos --config RelWithDebInfo
-cmake --install build_macos --config RelWithDebInfo
 ```
 
-Do not install a stale `Release` bundle after building `RelWithDebInfo`. Ask the user to fully quit and
-reopen OBS after installation; do not control OBS unless explicitly asked.
+For normal development, OBS must load the built bundle through this persistent symlink:
+
+```sh
+~/Library/Application Support/obs-studio/plugins/hd-obs.plugin \
+  -> <repository>/build_macos/RelWithDebInfo/hd-obs.plugin
+```
+
+Verify this exact path before every local handoff. OBS loads this project from `hd-obs.plugin`; a link named
+`input-activity.plugin` can coexist with a stale `hd-obs.plugin` and will not refresh the running plugin. If a
+regular installed bundle occupies the `hd-obs.plugin` path, obtain explicit approval before switching it: move it
+to a timestamped backup in the same directory, then create the symlink. Never leave two loadable bundles with the
+same `com.brendanwilliam.input-activity` identifier in the plugins directory.
+
+Use `cmake --install build_macos --config RelWithDebInfo` only when the user explicitly requests a copied local
+installation. Do not install a stale `Release` bundle after building `RelWithDebInfo`. Ask the user to fully quit
+and reopen OBS after refresh; do not control OBS unless explicitly asked.
 
 ## Repository-owned skills
 
@@ -94,6 +115,9 @@ reopen OBS after installation; do not control OBS unless explicitly asked.
 - [`skills/refresh-obs-docs-reference`](skills/refresh-obs-docs-reference/SKILL.md): audit the full OBS documentation site and refresh the local navigation reference.
 - [`skills/use-obs-docs-reference`](skills/use-obs-docs-reference/SKILL.md): locate and verify OBS API documentation during development or review.
 - [`skills/check-code-size`](skills/check-code-size/SKILL.md): enforce source-module size, ownership, and grouping rules.
+- [`skills/obs-github-issues`](skills/obs-github-issues/SKILL.md): discover and begin explicitly selected GitHub Issue work.
+- [`skills/branch-work-audit`](skills/branch-work-audit/SKILL.md): report recently active branches with work not merged into `develop`.
+- [`skills/daily-branch-reconcile`](skills/daily-branch-reconcile/SKILL.md): integrate and reconcile the past day's unmerged branch commits.
 
 Install these into a local Codex skills directory with `./scripts/install-repository-skills.sh`.
 

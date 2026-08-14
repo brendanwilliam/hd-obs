@@ -33,6 +33,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- LoL Performance Dashboard mouse activity now labels and aligns its map like other HUD widgets, marks mapped
+  gameplay keypresses at the current pointer position, and mirrors the live-key row order on the left HUD. The
+  most-used-key heading is now "Top Keys." Game Report collection no longer requires the unreliable Live Client
+  queue ID before recording a supported Summoner's Rift Classic match.
+- League Game Report collection now checkpoints active captures every five seconds and recovers interrupted captures for queued upload on the next plugin start.
+- League Game Report uploads now support Practice Tool matches.
+- LoL Performance Dashboard side HUDs now preserve mouse-activity map proportions, retain their clipping bounds, and keep key rows readable in compact layouts.
 - League Game Report collection now uploads its privacy-safe payload to Hands Diff and opens the hosted web report after upload; the embedded local recap, export, and plugin-side Riot enrichment have been removed.
 - League Game Report collection and management now live in the LoL Performance Dashboard; the separate scene-rendering Game Report source has been removed, while saved reports remain available through the local browser recap and JSON export.
 - League Game Report hexbins now retain the shared HUD grid's full configured size range, keeping recorded cells aligned with the displayed game frame.

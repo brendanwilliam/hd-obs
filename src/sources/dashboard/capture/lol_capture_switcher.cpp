@@ -8,7 +8,8 @@ namespace sources::league_capture_switcher {
 namespace {
 constexpr const char *screen_capture_id = "screen_capture";
 constexpr const char *game_application_id = "com.riotgames.LeagueofLegends.GameClient";
-constexpr const char *client_application_id = "com.riotgames.LeagueofLegends.LeagueClientUx";
+constexpr const char *client_application_id =
+	"com.riotgames.LeagueofLegends.LeagueClientUx";
 
 bool is_screen_capture(const obs_source_t *source)
 {
@@ -27,7 +28,8 @@ bool source_option_callback(void *data, obs_source_t *source)
 {
 	auto *options = static_cast<std::vector<source_option> *>(data);
 	if (is_screen_capture(source))
-		options->push_back({obs_source_get_name(source), obs_source_get_uuid(source)});
+		options->push_back(
+			{obs_source_get_name(source), obs_source_get_uuid(source)});
 	return true;
 }
 
@@ -41,7 +43,8 @@ bool auto_link_callback(void *data, obs_source_t *source)
 	if (!is_screen_capture(source))
 		return true;
 	auto *candidates = static_cast<auto_link_candidates *>(data);
-	const source_option option{obs_source_get_name(source), obs_source_get_uuid(source)};
+	const source_option option{obs_source_get_name(source),
+				   obs_source_get_uuid(source)};
 	const std::string id = application_id(source);
 	if (id == game_application_id)
 		candidates->game.push_back(option);
@@ -50,7 +53,8 @@ bool auto_link_callback(void *data, obs_source_t *source)
 	return true;
 }
 
-const source_option *best_candidate(const std::vector<source_option> &candidates, const char *kind)
+const source_option *best_candidate(const std::vector<source_option> &candidates,
+				    const char *kind)
 {
 	if (candidates.empty())
 		return nullptr;
@@ -58,7 +62,8 @@ const source_option *best_candidate(const std::vector<source_option> &candidates
 		std::string name = candidate.name;
 		std::transform(name.begin(), name.end(), name.begin(),
 			       [](unsigned char value) { return std::tolower(value); });
-		return name.find("lol") != std::string::npos && name.find(kind) != std::string::npos;
+		return name.find("lol") != std::string::npos &&
+		       name.find(kind) != std::string::npos;
 	};
 	const auto preferred = std::find_if(candidates.begin(), candidates.end(), match);
 	return preferred != candidates.end() ? &*preferred : &candidates.front();
@@ -102,7 +107,9 @@ std::vector<source_option> capture_sources()
 	std::vector<source_option> options;
 	obs_enum_sources(source_option_callback, &options);
 	std::sort(options.begin(), options.end(),
-		  [](const source_option &left, const source_option &right) { return left.name < right.name; });
+		  [](const source_option &left, const source_option &right) {
+			  return left.name < right.name;
+		  });
 	return options;
 }
 
@@ -119,7 +126,8 @@ bool auto_link(obs_data_t *settings)
 	return true;
 }
 
-void switch_captures(const std::string &game_source_uuid, const std::string &client_source_uuid, bool game_is_frontmost)
+void switch_captures(const std::string &game_source_uuid,
+		     const std::string &client_source_uuid, bool game_is_frontmost)
 {
 	if (game_source_uuid.empty() || client_source_uuid.empty())
 		return;

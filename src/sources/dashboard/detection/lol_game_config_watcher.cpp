@@ -18,7 +18,8 @@ bool lol_dashboard_game_config_watcher::changed(float seconds)
 		return false;
 	poll_seconds_ = 0.0F;
 	const QFileInfo info(path_);
-	const std::pair<qint64, qint64> next{info.lastModified().toMSecsSinceEpoch(), info.size()};
+	const std::pair<qint64, qint64> next{info.lastModified().toMSecsSinceEpoch(),
+					     info.size()};
 	if (next == stamp_)
 		return false;
 	stamp_ = next;

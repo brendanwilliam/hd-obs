@@ -1,6 +1,7 @@
 #include "sources/game_report/data/lol_types.hpp"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <algorithm>
 #include <numeric>
 
@@ -20,9 +21,15 @@ QJsonObject sample_json(const stat_sample &s)
 }
 stat_sample sample_from_json(const QJsonObject &o)
 {
-	return {o["seconds"].toInt(), o["kills"].toInt(),      o["deaths"].toInt(),
-		o["assists"].toInt(), o["cs"].toInt(),         o["level"].toInt(),
-		o["gold"].toInt(),    o["ward_score"].toInt(), o["estimated_gold"].toInt(o["gold"].toInt())};
+	return {o["seconds"].toInt(),
+		o["kills"].toInt(),
+		o["deaths"].toInt(),
+		o["assists"].toInt(),
+		o["cs"].toInt(),
+		o["level"].toInt(),
+		o["gold"].toInt(),
+		o["ward_score"].toInt(),
+		o["estimated_gold"].toInt(o["gold"].toInt())};
 }
 QJsonArray strings_json(const QStringList &values)
 {
@@ -31,140 +38,154 @@ QJsonArray strings_json(const QStringList &values)
 		result.append(value);
 	return result;
 }
+QJsonValue sorted_json(const QJsonValue &value)
+{
+	if (value.isArray()) {
+		QJsonArray result;
+		for (const auto item : value.toArray())
+			result.append(sorted_json(item));
+		return result;
+	}
+	if (!value.isObject())
+		return value;
+	const QJsonObject object = value.toObject();
+	QStringList keys = object.keys();
+	std::sort(keys.begin(), keys.end());
+	QJsonObject result;
+	for (const auto &key : keys)
+		result.insert(key, sorted_json(object[key]));
+	return result;
+}
 } // namespace
+
+QByteArray canonical_payload(QJsonObject value)
+{
+	value.remove("payload_hash");
+	return QJsonDocument(sorted_json(value).toObject()).toJson(QJsonDocument::Compact);
+}
 
 QJsonObject to_json(const report &v)
 {
-	QJsonArray samples, events, abilities, item_events, input, hexbins, chapters;
-	for (const auto &s : v.samples)
-		samples.append(sample_json(s));
-	for (const auto &e : v.events)
-		events.append(QJsonObject{{"id", e.id},
-					  {"type", e.type},
-					  {"seconds", e.seconds},
-					  {"detail", e.detail},
-					  {"category", e.category}});
-	for (const auto &a : v.abilities)
-		abilities.append(QJsonObject{{"ability", a.ability}, {"level", a.level}, {"seconds", a.seconds}});
-	for (const auto &i : v.item_events)
-		item_events.append(QJsonObject{{"item", i.item}, {"item_id", i.item_id}, {"seconds", i.seconds}});
-	for (const auto &i : v.input_samples)
-		input.append(QJsonObject{{"seconds", i.seconds},
-					 {"actions", i.actions},
-					 {"mouse_distance_pixels", i.mouse_distance_pixels},
-					 {"max_velocity_pixels_per_second", i.max_velocity_pixels_per_second}});
-	for (const auto &h : v.hexbins)
-		hexbins.append(QJsonObject{{"column", h.column}, {"row", h.row}, {"dwell_ms", double(h.dwell_ms)}});
-	for (const auto &c : v.chapters)
-		chapters.append(QJsonObject{{"start_seconds", c.start_seconds},
-					    {"end_seconds", c.end_seconds},
-					    {"summary", c.summary}});
-	return {{"schema_version", 4},
-		{"id", v.id},
-		{"completed_at", v.completed_at.toUTC().toString(Qt::ISODateWithMs)},
-		{"player", v.player},
-		{"game_mode", v.game_mode},
-		{"map", v.map},
-		{"outcome", v.outcome},
-		{"champion", v.champion},
-		{"role", v.role},
-		{"game_id", v.game_id},
-		{"duration_seconds", v.duration_seconds},
-		{"team_gold", v.team_gold},
-		{"enemy_team_gold", v.enemy_team_gold},
-		{"team_kills", v.team_kills},
-		{"enemy_team_kills", v.enemy_team_kills},
-		{"samples", samples},
-		{"events", events},
-		{"items", strings_json(v.items)},
-		{"runes", strings_json(v.runes)},
-		{"abilities", abilities},
-		{"item_events", item_events},
-		{"input_samples", input},
-		{"hex_radius_percent", v.hex_geometry.radius_percent},
-		{"frame_aspect_ratio", v.hex_geometry.frame_aspect_ratio},
-		{"hexbins", hexbins},
-		{"hexbin_estimated", v.hexbin_estimated},
-		{"dpi", v.dpi},
-		{"assets", v.assets},
-		{"chapters", chapters},
-		{"enrichment", v.enrichment}};
+	QString game_name = v.riot_id_game_name, tag_line = v.riot_id_tag_line;
+	if (game_name.isEmpty())
+		game_name = v.player;
+	const qsizetype separator = game_name.lastIndexOf('#');
+	if (separator > 0) {
+		if (tag_line.isEmpty())
+			tag_line = game_name.mid(separator + 1);
+		game_name.truncate(separator);
+	}
+	if (tag_line.isEmpty())
+		tag_line = "unknown";
+	QJsonArray intensity;
+	QVector<intensity_sample> samples = v.v2_intensity;
+	for (const auto &sample : samples)
+		intensity.append(QJsonObject{{"second", sample.second},
+					     {"apm", sample.apm},
+					     {"mouse_velocity", sample.mouse_velocity}});
+	metric_summary summary = v.v2_summary;
+	if (v.v2_intensity.isEmpty()) {
+		QVector<double> apm, velocity;
+		for (const auto &sample : samples) {
+			apm.append(sample.apm);
+			velocity.append(sample.mouse_velocity);
+			summary.peak_apm = std::max(summary.peak_apm, sample.apm);
+			summary.peak_mouse_velocity = std::max(
+				summary.peak_mouse_velocity, sample.mouse_velocity);
+		}
+		auto median = [](QVector<double> values) {
+			if (values.isEmpty())
+				return 0.0;
+			std::sort(values.begin(), values.end());
+			const qsizetype middle = values.size() / 2;
+			return values.size() % 2
+				       ? values[middle]
+				       : (values[middle - 1] + values[middle]) / 2.0;
+		};
+		summary.median_apm = median(apm);
+		summary.median_mouse_velocity = median(velocity);
+	}
+	const int duration_ms =
+		v.duration_seconds > 0
+			? v.duration_seconds * 1000
+			: int(v.observed_started_at.msecsTo(v.completed_at));
+	const QDateTime started = v.observed_started_at.isValid()
+					  ? v.observed_started_at
+					  : v.completed_at.addMSecs(-duration_ms);
+	QJsonObject input{
+		{"left_clicks", summary.left_clicks},
+		{"right_clicks", summary.right_clicks},
+		{"gameplay_key_actions", summary.gameplay_key_actions},
+		{"intensity_by_second", intensity},
+		{"summary",
+		 QJsonObject{{"peak_apm", summary.peak_apm},
+			     {"median_apm", summary.median_apm},
+			     {"peak_mouse_velocity", summary.peak_mouse_velocity},
+			     {"median_mouse_velocity", summary.median_mouse_velocity}}}};
+	if (!v.playback.records.isEmpty() || v.playback.truncated ||
+	    v.playback.omitted_record_count > 0)
+		input.insert("playback",
+			     QJsonObject{{"records", playback_json(v.playback)},
+					 {"truncated", v.playback.truncated},
+					 {"omitted_record_count",
+					  v.playback.omitted_record_count},
+					 {"timestamp_precision_ms", 2000}});
+	return {{"schema_version", input.contains("playback") ? 3 : 2},
+		{"report_id", v.id},
+		{"capture_policy_version", 1},
+		{"capture",
+		 QJsonObject{
+			 {"started_at_utc", started.toUTC().toString(Qt::ISODateWithMs)},
+			 {"duration_ms", duration_ms},
+			 {"game_mode", v.game_mode},
+			 {"map_number", v.map_number},
+			 {"riot_id",
+			  QJsonObject{{"game_name", game_name}, {"tag_line", tag_line}}},
+			 {"frontmost_capture", v.frontmost_capture},
+			 {"complete", v.complete},
+			 {"event_detail_truncated", v.event_detail_truncated}}},
+		{"input", input},
+		{"live_context", QJsonObject{{"changes", QJsonArray{}}}}};
 }
 
 bool from_json(const QJsonObject &o, report &v)
 {
-	const int version = o["schema_version"].toInt();
-	if ((version < 1 || version > 4) || o["id"].toString().isEmpty())
+	const int schema_version = o["schema_version"].toInt();
+	if ((schema_version != 2 && schema_version != 3) ||
+	    o["report_id"].toString().isEmpty())
 		return false;
 	v = {};
-	v.schema_version = version;
-	v.id = o["id"].toString();
-	v.completed_at = QDateTime::fromString(o["completed_at"].toString(), Qt::ISODateWithMs);
-	v.player = o["player"].toString();
-	v.game_mode = o["game_mode"].toString();
-	v.map = o["map"].toString();
-	v.outcome = o["outcome"].toString("unavailable");
-	v.champion = o["champion"].toString();
-	v.role = o["role"].toString();
-	v.game_id = o["game_id"].toString();
-	v.duration_seconds = o["duration_seconds"].toInt();
-	v.team_gold = o["team_gold"].toInt();
-	v.enemy_team_gold = o["enemy_team_gold"].toInt();
-	v.team_kills = o["team_kills"].toInt();
-	v.enemy_team_kills = o["enemy_team_kills"].toInt();
-	v.dpi = o["dpi"].toInt(800);
-	v.assets = o["assets"].toObject();
-	v.enrichment = o["enrichment"].toObject();
-	for (const auto x : o["samples"].toArray())
-		v.samples.append(sample_from_json(x.toObject()));
-	for (const auto x : o["events"].toArray()) {
-		const auto e = x.toObject();
-		v.events.append({e["id"].toString(), e["type"].toString(), e["seconds"].toInt(), e["detail"].toString(),
-				 e["category"].toString(classify_event(e["type"].toString()))});
+	v.id = o["report_id"].toString();
+	const QJsonObject capture = o["capture"].toObject();
+	const QJsonObject riot_id = capture["riot_id"].toObject();
+	v.riot_id_game_name = riot_id["game_name"].toString();
+	v.riot_id_tag_line = riot_id["tag_line"].toString();
+	v.player = v.riot_id_game_name + "#" + v.riot_id_tag_line;
+	v.observed_started_at = QDateTime::fromString(
+		capture["started_at_utc"].toString(), Qt::ISODateWithMs);
+	v.completed_at = v.observed_started_at.addMSecs(capture["duration_ms"].toInt());
+	v.duration_seconds = capture["duration_ms"].toInt() / 1000;
+	v.game_mode = capture["game_mode"].toString();
+	v.map_number = capture["map_number"].toInt();
+	v.frontmost_capture = capture["frontmost_capture"].toBool();
+	v.complete = capture["complete"].toBool();
+	v.event_detail_truncated = capture["event_detail_truncated"].toBool();
+	for (const auto value : o["input"].toObject()["intensity_by_second"].toArray()) {
+		const QJsonObject sample = value.toObject();
+		v.v2_intensity.append({sample["second"].toInt(), sample["apm"].toDouble(),
+				       sample["mouse_velocity"].toDouble()});
 	}
-	for (const auto x : o["items"].toArray())
-		v.items.append(x.toString());
-	for (const auto x : o["runes"].toArray())
-		v.runes.append(x.toString());
-	for (const auto x : o["abilities"].toArray()) {
-		const auto a = x.toObject();
-		v.abilities.append({a["ability"].toString(), a["level"].toInt(), a["seconds"].toInt()});
-	}
-	for (const auto x : o["item_events"].toArray()) {
-		const auto i = x.toObject();
-		v.item_events.append({i["item"].toString(), i["item_id"].toInt(), i["seconds"].toInt()});
-	}
-	for (const auto x : o["input_samples"].toArray()) {
-		const auto i = x.toObject();
-		v.input_samples.append({i["seconds"].toInt(), i["actions"].toInt(),
-					i["mouse_distance_pixels"].toDouble(),
-					i["max_velocity_pixels_per_second"].toDouble()});
-	}
-	if (version >= 3) {
-		v.hex_geometry.radius_percent =
-			std::clamp(o["hex_radius_percent"].toDouble(default_hex_radius_percent), 0.1, 100.0);
-		v.hex_geometry.frame_aspect_ratio = std::max(0.01, o["frame_aspect_ratio"].toDouble(16.0 / 9.0));
-		v.hexbin_estimated = o["hexbin_estimated"].toBool();
-		for (const auto x : o["hexbins"].toArray()) {
-			const auto h = x.toObject();
-			v.hexbins.append({h["column"].toInt(), h["row"].toInt(), uint64_t(h["dwell_ms"].toDouble())});
-		}
-	} else {
-		v.hexbin_estimated = true;
-		for (const auto x : o["heatmap"].toArray()) {
-			const auto h = x.toObject();
-			const QPointF point((h["x"].toInt() + 0.5) * 100.0 / 30.0,
-					    (h["y"].toInt() + 0.5) * lol_game_report::canonical_height(v.hex_geometry) /
-						    17.0);
-			add_hex_dwell(v.hexbins, nearest_hex(v.hex_geometry, point),
-				      uint64_t(std::max(0, h["count"].toInt())));
-		}
-		v.schema_version = 4;
-	}
-	for (const auto x : o["chapters"].toArray()) {
-		const auto c = x.toObject();
-		v.chapters.append({c["start_seconds"].toInt(), c["end_seconds"].toInt(), c["summary"].toString()});
-	}
+	const QJsonObject summary = o["input"].toObject()["summary"].toObject();
+	v.v2_summary = {o["input"].toObject()["left_clicks"].toInt(),
+			o["input"].toObject()["right_clicks"].toInt(),
+			o["input"].toObject()["gameplay_key_actions"].toInt(),
+			summary["peak_apm"].toDouble(),
+			summary["median_apm"].toDouble(),
+			summary["peak_mouse_velocity"].toDouble(),
+			summary["median_mouse_velocity"].toDouble()};
+	if (schema_version == 3 &&
+	    !playback_from_json(o["input"].toObject()["playback"].toObject(), v.playback))
+		return false;
 	return true;
 }
 
@@ -174,15 +195,18 @@ QString classify_event(const QString &name)
 		return "kill";
 	if (name.contains("Turret", Qt::CaseInsensitive))
 		return "tower";
-	if (name.contains("Dragon", Qt::CaseInsensitive) || name.contains("Baron", Qt::CaseInsensitive) ||
-	    name.contains("Herald", Qt::CaseInsensitive) || name.contains("RiftScuttler", Qt::CaseInsensitive))
+	if (name.contains("Dragon", Qt::CaseInsensitive) ||
+	    name.contains("Baron", Qt::CaseInsensitive) ||
+	    name.contains("Herald", Qt::CaseInsensitive) ||
+	    name.contains("RiftScuttler", Qt::CaseInsensitive))
 		return "objective";
 	if (name == "LevelUp")
 		return "level";
 	return name == "GameEnd" ? "game_end" : "other";
 }
 
-QVector<chapter> make_chapters(const QVector<stat_sample> &samples, const QVector<event> &events)
+QVector<chapter> make_chapters(const QVector<stat_sample> &samples,
+			       const QVector<event> &events)
 {
 	QVector<chapter> result;
 	if (samples.isEmpty())
@@ -194,14 +218,16 @@ QVector<chapter> make_chapters(const QVector<stat_sample> &samples, const QVecto
 	boundaries.append(samples.last().seconds + 1);
 	for (int n = 0; n + 1 < boundaries.size(); ++n) {
 		const int start = boundaries[n], end = boundaries[n + 1] - 1;
-		auto first = std::find_if(samples.cbegin(), samples.cend(),
-					  [&](const auto &s) { return s.seconds >= start; });
+		auto first =
+			std::find_if(samples.cbegin(), samples.cend(),
+				     [&](const auto &s) { return s.seconds >= start; });
 		auto last = std::find_if(samples.crbegin(), samples.crend(),
 					 [&](const auto &s) { return s.seconds <= end; });
 		if (first == samples.cend() || last == samples.crend())
 			continue;
 		QStringList changes;
-		if (last->kills != first->kills || last->deaths != first->deaths || last->assists != first->assists)
+		if (last->kills != first->kills || last->deaths != first->deaths ||
+		    last->assists != first->assists)
 			changes << QString("K/D/A %1/%2/%3 → %4/%5/%6")
 					   .arg(first->kills)
 					   .arg(first->deaths)
@@ -212,8 +238,12 @@ QVector<chapter> make_chapters(const QVector<stat_sample> &samples, const QVecto
 		if (last->cs != first->cs)
 			changes << QString("CS %1 → %2").arg(first->cs).arg(last->cs);
 		if (last->level != first->level)
-			changes << QString("level %1 → %2").arg(first->level).arg(last->level);
-		result.append({start, end, changes.isEmpty() ? "Observed activity window." : changes.join(", ")});
+			changes << QString("level %1 → %2")
+					   .arg(first->level)
+					   .arg(last->level);
+		result.append({start, end,
+			       changes.isEmpty() ? "Observed activity window."
+						 : changes.join(", ")});
 	}
 	return result;
 }
@@ -226,13 +256,16 @@ QVector<insight> make_insights(const report &v)
 			       QString("%1 at %2:%3")
 				       .arg(v.item_events.first().item)
 				       .arg(v.item_events.first().seconds / 60)
-				       .arg(v.item_events.first().seconds % 60, 2, 10, QLatin1Char('0'))});
+				       .arg(v.item_events.first().seconds % 60, 2, 10,
+					    QLatin1Char('0'))});
 	for (const auto &a : v.abilities)
 		if (a.level == 6 || a.level == 11 || a.level == 16)
-			result.append({"Level milestone", QString("Level %1 at %2:%3")
-								  .arg(a.level)
-								  .arg(a.seconds / 60)
-								  .arg(a.seconds % 60, 2, 10, QLatin1Char('0'))});
+			result.append(
+				{"Level milestone",
+				 QString("Level %1 at %2:%3")
+					 .arg(a.level)
+					 .arg(a.seconds / 60)
+					 .arg(a.seconds % 60, 2, 10, QLatin1Char('0'))});
 	return result;
 }
 
@@ -241,17 +274,21 @@ QVector<double> normalized_series(const QVector<double> &values, bool average_ra
 	QVector<double> result;
 	if (values.isEmpty())
 		return result;
-	const double average = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+	const double average =
+		std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 	const auto [low, high] = std::minmax_element(values.begin(), values.end());
 	const double denominator = average_ratio ? average : *high - *low;
 	for (double value : values)
-		result.append(denominator == 0 ? 0.0
-					       : (average_ratio ? value / denominator : (value - *low) / denominator));
+		result.append(denominator == 0
+				      ? 0.0
+				      : (average_ratio ? value / denominator
+						       : (value - *low) / denominator));
 	return result;
 }
 QString display_name(const report &v)
 {
-	return QString("%1 — %2").arg(v.completed_at.toLocalTime().toString("yyyy-MM-dd HH:mm"),
-				      v.game_mode.isEmpty() ? "League game" : v.game_mode);
+	return QString("%1 — %2").arg(
+		v.completed_at.toLocalTime().toString("yyyy-MM-dd HH:mm"),
+		v.game_mode.isEmpty() ? "League game" : v.game_mode);
 }
 } // namespace sources::lol_game_report

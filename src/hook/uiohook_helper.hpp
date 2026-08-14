@@ -32,7 +32,8 @@ struct input_context {
 
 	bool operator!=(const input_context &other) const
 	{
-		return application_id != other.application_id || window_id != other.window_id ||
+		return application_id != other.application_id ||
+		       window_id != other.window_id ||
 		       focused_display_id != other.focused_display_id;
 	}
 };

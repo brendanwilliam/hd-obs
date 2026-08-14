@@ -24,6 +24,7 @@ struct target {
 
 void push(const uiohook_event *event);
 void consume(const target &target, uint64_t &cursor, bool &discard_backlog,
-	     std::vector<input_data::trace_event> &events, input_data::button_map<uint16_t> &keyboard,
+	     std::vector<input_data::trace_event> &events,
+	     input_data::button_map<uint16_t> &keyboard,
 	     input_data::button_map<uint16_t> &mouse);
 } // namespace input_broker

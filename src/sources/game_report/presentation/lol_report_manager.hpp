@@ -12,12 +12,13 @@ public:
 	~lol_report_manager();
 	lol_report_manager(const lol_report_manager &) = delete;
 	void update(obs_data *settings);
-	void tick(const QRect &game_frame, double hex_radius_percent);
-	bool reveal_development_log() const;
+	void tick(const QRect &game_frame);
+	int mouse_dpi() const;
 	bool link_online_reports();
 	bool unlink_online_reports();
 	bool retry_online_reports();
 	void add_properties(obs_properties *properties);
+	static void add_active_properties(obs_properties *properties);
 	static void defaults(obs_data *settings);
 
 private:

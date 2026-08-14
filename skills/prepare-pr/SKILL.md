@@ -8,6 +8,8 @@ description: Prepare a governed pull request for this repository. Use when valid
 1. Target `develop` for ordinary feature, fix, chore, and coordinated-update changes. Target `main` only for a
    promotion pull request from `develop`, including release-preparation changes.
 2. Confirm a Conventional Commit subject and explanatory body for non-trivial work.
+   For a branch created for a same-repository GitHub Issue, include `Closes #<issue>` in the PR body.
+   Do not add that closure for work that is not issue-backed.
 3. Run the applicable formatter and `cmake --preset macos-ci` plus `cmake --build --preset macos-ci`. Report any intentionally unrun validation and why.
 4. Manually verify affected source types in OBS; for capture changes, verify both granted and missing Accessibility permission behavior.
 5. Update `CHANGELOG.md` for user-visible behavior. Do not add a release note for internal-only work without explaining the omission in the PR.

@@ -17,6 +17,6 @@ struct source_option {
 
 std::vector<source_option> capture_sources();
 bool auto_link(obs_data_t *settings);
-void switch_captures(const std::string &game_source_uuid, const std::string &client_source_uuid,
-		     bool game_is_frontmost);
+void switch_captures(const std::string &game_source_uuid,
+		     const std::string &client_source_uuid, bool game_is_frontmost);
 } // namespace sources::league_capture_switcher
