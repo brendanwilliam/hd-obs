@@ -24,14 +24,16 @@ game_context parse_game_context(const QJsonObject &all_game_data)
 	result.game_time = game["gameTime"].toDouble(-1.0);
 	const QJsonArray events = all_game_data["events"].toObject()["Events"].toArray();
 	for (const QJsonValue value : events)
-		result.game_end = result.game_end || value.toObject()["EventName"].toString() == "GameEnd";
+		result.game_end = result.game_end ||
+				  value.toObject()["EventName"].toString() == "GameEnd";
 	return result;
 }
 
 bool supported_game(const game_context &context)
 {
-	return !context.riot_id_game_name.isEmpty() && !context.riot_id_tag_line.isEmpty() &&
-	       context.map_number == 11 && (context.game_mode == "CLASSIC" || context.game_mode == "PRACTICETOOL") &&
+	return !context.riot_id_game_name.isEmpty() &&
+	       !context.riot_id_tag_line.isEmpty() && context.map_number == 11 &&
+	       (context.game_mode == "CLASSIC" || context.game_mode == "PRACTICETOOL") &&
 	       context.game_time >= 0.0;
 }
 

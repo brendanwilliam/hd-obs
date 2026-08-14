@@ -29,22 +29,25 @@ class lol_report_manager::implementation {
 public:
 	implementation() : online(std::make_unique<lol_game_report::online_reports>())
 	{
-		const QPointer<lol_game_report::online_reports> online_reports = online.get();
+		const QPointer<lol_game_report::online_reports> online_reports =
+			online.get();
 		online_reports->moveToThread(&online_thread);
 		online_thread.start();
 		QMetaObject::invokeMethod(
-			online_reports, [online_reports] { online_reports->start(); }, Qt::QueuedConnection);
-		collector.set_submission_callback([online_reports](const lol_game_report::report &report) {
-			if (!online_reports)
-				return;
-			QMetaObject::invokeMethod(
-				online_reports,
-				[online_reports, report] {
-					if (online_reports)
-						online_reports->submit(report);
-				},
-				Qt::QueuedConnection);
-		});
+			online_reports, [online_reports] { online_reports->start(); },
+			Qt::QueuedConnection);
+		collector.set_submission_callback(
+			[online_reports](const lol_game_report::report &report) {
+				if (!online_reports)
+					return;
+				QMetaObject::invokeMethod(
+					online_reports,
+					[online_reports, report] {
+						if (online_reports)
+							online_reports->submit(report);
+					},
+					Qt::QueuedConnection);
+			});
 	}
 	~implementation()
 	{
@@ -64,28 +67,35 @@ public:
 		};
 		if (reports->thread() == QThread::currentThread()) {
 			dispose();
-		} else if (!QMetaObject::invokeMethod(reports, dispose, Qt::BlockingQueuedConnection)) {
-			blog(LOG_WARNING, "[input-activity] unable to dispose online reports on its Qt thread");
+		} else if (!QMetaObject::invokeMethod(reports, dispose,
+						      Qt::BlockingQueuedConnection)) {
+			blog(LOG_WARNING,
+			     "[input-activity] unable to dispose online reports on its Qt thread");
 		}
 		online_thread.quit();
 		online_thread.wait();
 	}
 	void update(obs_data_t *settings)
 	{
-		mouse_dpi = std::clamp(int(obs_data_get_int(settings, dpi_key)), 100, 32000);
+		mouse_dpi =
+			std::clamp(int(obs_data_get_int(settings, dpi_key)), 100, 32000);
 		development_logs = obs_data_get_bool(settings, development_logs_key);
 		analysis_enabled = obs_data_get_bool(settings, analysis_enabled_key);
 		collector.set_enabled(analysis_enabled);
-		const bool upload_enabled = obs_data_get_bool(settings, upload_enabled_key);
-		const QPointer<lol_game_report::online_reports> online_reports = online.get();
+		const bool upload_enabled =
+			obs_data_get_bool(settings, upload_enabled_key);
+		const QPointer<lol_game_report::online_reports> online_reports =
+			online.get();
 		QMetaObject::invokeMethod(
 			online_reports,
 			[online_reports, upload_enabled] {
 				if (online_reports)
-					online_reports->set_upload_enabled(upload_enabled);
+					online_reports->set_upload_enabled(
+						upload_enabled);
 			},
 			Qt::QueuedConnection);
-		const QFileInfo game_config(QString::fromUtf8(obs_data_get_string(settings, game_config_key)));
+		const QFileInfo game_config(QString::fromUtf8(
+			obs_data_get_string(settings, game_config_key)));
 		const QString next_input_path = game_config.dir().filePath("input.ini");
 		if (input_path != next_input_path)
 			input_stamp_ = {-1, -1};
@@ -106,8 +116,10 @@ public:
 	void reload_bindings(const QString &champion)
 	{
 		const QFileInfo input(input_path);
-		const std::pair<qint64, qint64> stamp{input.lastModified().toMSecsSinceEpoch(), input.size()};
-		if (input_path.isEmpty() || (stamp == input_stamp_ && champion == input_champion_))
+		const std::pair<qint64, qint64> stamp{
+			input.lastModified().toMSecsSinceEpoch(), input.size()};
+		if (input_path.isEmpty() ||
+		    (stamp == input_stamp_ && champion == input_champion_))
 			return;
 		QFile file(input_path);
 		if (!file.open(QIODevice::ReadOnly))
@@ -157,7 +169,8 @@ int lol_report_manager::mouse_dpi() const
 }
 bool lol_report_manager::link_online_reports()
 {
-	const QPointer<lol_game_report::online_reports> online = implementation_->online.get();
+	const QPointer<lol_game_report::online_reports> online =
+		implementation_->online.get();
 	if (online)
 		QMetaObject::invokeMethod(
 			online,
@@ -170,7 +183,8 @@ bool lol_report_manager::link_online_reports()
 }
 bool lol_report_manager::unlink_online_reports()
 {
-	const QPointer<lol_game_report::online_reports> online = implementation_->online.get();
+	const QPointer<lol_game_report::online_reports> online =
+		implementation_->online.get();
 	if (online)
 		QMetaObject::invokeMethod(
 			online,
@@ -183,7 +197,8 @@ bool lol_report_manager::unlink_online_reports()
 }
 bool lol_report_manager::retry_online_reports()
 {
-	const QPointer<lol_game_report::online_reports> online = implementation_->online.get();
+	const QPointer<lol_game_report::online_reports> online =
+		implementation_->online.get();
 	if (online)
 		QMetaObject::invokeMethod(
 			online,
@@ -206,37 +221,51 @@ void lol_report_manager::add_properties(obs_properties *properties)
 {
 	auto *props = reinterpret_cast<obs_properties_t *>(properties);
 	auto *online = obs_properties_create();
-	obs_properties_add_bool(online, analysis_enabled_key, obs_module_text("LoLGameReport.AnalysisEnabled"));
-	obs_properties_add_bool(online, upload_enabled_key, obs_module_text("LoLGameReport.UploadEnabled"));
-	obs_properties_add_int(online, dpi_key, obs_module_text("LoLGameReport.MouseDPI"), 100, 32000, 50);
+	obs_properties_add_bool(online, analysis_enabled_key,
+				obs_module_text("LoLGameReport.AnalysisEnabled"));
+	obs_properties_add_bool(online, upload_enabled_key,
+				obs_module_text("LoLGameReport.UploadEnabled"));
+	obs_properties_add_int(online, dpi_key, obs_module_text("LoLGameReport.MouseDPI"),
+			       100, 32000, 50);
 	const QString status =
 		QString("%1: %2").arg(obs_module_text("LoLGameReport.CollectorStatus"),
-				      lol_game_report::collector::state_text(implementation_->collector.state()));
+				      lol_game_report::collector::state_text(
+					      implementation_->collector.state()));
 	obs_properties_add_text(online, "lol_dashboard.report.online_status",
-				QString("%1: %2").arg(status, implementation_->online->status()).toUtf8().constData(),
+				QString("%1: %2")
+					.arg(status, implementation_->online->status())
+					.toUtf8()
+					.constData(),
 				OBS_TEXT_INFO);
-	obs_properties_add_bool(online, development_logs_key, obs_module_text("LoLGameReport.DevelopmentLogs"));
+	obs_properties_add_bool(online, development_logs_key,
+				obs_module_text("LoLGameReport.DevelopmentLogs"));
 	obs_properties_add_button2(
-		online, "lol_dashboard.report.online_link", obs_module_text("LoLGameReport.OnlineLink"),
+		online, "lol_dashboard.report.online_link",
+		obs_module_text("LoLGameReport.OnlineLink"),
 		[](obs_properties_t *, obs_property_t *, void *data) {
-			return static_cast<lol_report_manager *>(data)->link_online_reports();
+			return static_cast<lol_report_manager *>(data)
+				->link_online_reports();
 		},
 		this);
 	obs_properties_add_button2(
-		online, "lol_dashboard.report.online_unlink", obs_module_text("LoLGameReport.OnlineUnlink"),
+		online, "lol_dashboard.report.online_unlink",
+		obs_module_text("LoLGameReport.OnlineUnlink"),
 		[](obs_properties_t *, obs_property_t *, void *data) {
-			return static_cast<lol_report_manager *>(data)->unlink_online_reports();
+			return static_cast<lol_report_manager *>(data)
+				->unlink_online_reports();
 		},
 		this);
 	obs_properties_add_button2(
-		online, "lol_dashboard.report.online_retry", obs_module_text("LoLGameReport.OnlineRetry"),
+		online, "lol_dashboard.report.online_retry",
+		obs_module_text("LoLGameReport.OnlineRetry"),
 		[](obs_properties_t *, obs_property_t *, void *data) {
-			return static_cast<lol_report_manager *>(data)->retry_online_reports();
+			return static_cast<lol_report_manager *>(data)
+				->retry_online_reports();
 		},
 		this);
-	auto *online_group = obs_properties_add_group(props, "lol_dashboard.report.online",
-						      obs_module_text("LoLGameReport.Online"), OBS_GROUP_NORMAL,
-						      online);
+	auto *online_group = obs_properties_add_group(
+		props, "lol_dashboard.report.online",
+		obs_module_text("LoLGameReport.Online"), OBS_GROUP_NORMAL, online);
 	Q_UNUSED(online_group);
 }
 void lol_report_manager::add_active_properties(obs_properties *properties)

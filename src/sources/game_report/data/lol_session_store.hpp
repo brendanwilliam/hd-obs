@@ -24,7 +24,8 @@ public:
 	explicit session_store(QString root);
 	bool save(const retained_session &session);
 	QVector<retained_session> load() const;
-	bool update_upload(const QString &report_id, upload_state state, QDateTime retry_at, int attempts);
+	bool update_upload(const QString &report_id, upload_state state,
+			   QDateTime retry_at, int attempts);
 	bool save_checkpoint(const retained_session &session);
 	std::optional<retained_session> load_checkpoint() const;
 	bool clear_checkpoint();

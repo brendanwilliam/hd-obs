@@ -36,7 +36,8 @@ void v2_metrics::record_motion(double game_seconds, QPointF point, bool in_game_
 	}
 	if (has_previous_point_ && game_seconds >= previous_motion_seconds_)
 		motion_.append(
-			{game_seconds, std::hypot(point.x() - previous_point_.x(), point.y() - previous_point_.y())});
+			{game_seconds, std::hypot(point.x() - previous_point_.x(),
+						  point.y() - previous_point_.y())});
 	previous_point_ = point;
 	previous_motion_seconds_ = game_seconds;
 	has_previous_point_ = true;
@@ -44,7 +45,8 @@ void v2_metrics::record_motion(double game_seconds, QPointF point, bool in_game_
 
 void v2_metrics::evaluate_through(int game_second)
 {
-	for (int second = std::max(0, last_second_ + 1); second <= game_second; ++second) {
+	for (int second = std::max(0, last_second_ + 1); second <= game_second;
+	     ++second) {
 		int actions{};
 		double distance{};
 		for (const auto &action : actions_)
@@ -71,14 +73,16 @@ metric_summary v2_metrics::summary() const
 		apm.append(sample.apm);
 		velocity.append(sample.mouse_velocity);
 		result.peak_apm = std::max(result.peak_apm, sample.apm);
-		result.peak_mouse_velocity = std::max(result.peak_mouse_velocity, sample.mouse_velocity);
+		result.peak_mouse_velocity =
+			std::max(result.peak_mouse_velocity, sample.mouse_velocity);
 	}
 	auto median = [](QVector<double> values) {
 		if (values.isEmpty())
 			return 0.0;
 		std::sort(values.begin(), values.end());
 		const qsizetype middle = values.size() / 2;
-		return values.size() % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
+		return values.size() % 2 ? values[middle]
+					 : (values[middle - 1] + values[middle]) / 2.0;
 	};
 	result.median_apm = median(apm);
 	result.median_mouse_velocity = median(velocity);

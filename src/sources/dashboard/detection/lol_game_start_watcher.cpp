@@ -55,7 +55,8 @@ private:
 		if (pending_)
 			return;
 		pending_ = true;
-		QNetworkRequest request(QUrl("https://127.0.0.1:2999/liveclientdata/gamestats"));
+		QNetworkRequest request(
+			QUrl("https://127.0.0.1:2999/liveclientdata/gamestats"));
 		request.setTransferTimeout(800);
 		QSslConfiguration ssl = request.sslConfiguration();
 		ssl.setPeerVerifyMode(QSslSocket::VerifyNone);
@@ -66,13 +67,16 @@ private:
 			pending_ = false;
 			const bool success = reply->error() == QNetworkReply::NoError;
 			const double game_time =
-				success ? QJsonDocument::fromJson(reply->readAll()).object()["gameTime"].toDouble()
+				success ? QJsonDocument::fromJson(reply->readAll())
+						  .object()["gameTime"]
+						  .toDouble()
 					: 0.0;
 			if (success)
 				failures_ = 0;
 			else
 				++failures_;
-			const bool game_active = success ? game_time > 0.0 : failures_ < 3 && active_;
+			const bool game_active = success ? game_time > 0.0
+							 : failures_ < 3 && active_;
 			const uint64_t starts = detector_.observe(game_active);
 			starts_.store(starts, std::memory_order_release);
 			active_ = game_active;
@@ -100,20 +104,27 @@ struct lol_dashboard_game_start_watcher::implementation {
 	{
 		worker_ = new worker(starts);
 		worker_->moveToThread(&thread);
-		QObject::connect(&thread, &QThread::started, worker_, [this] { worker_->start(); });
-		QObject::connect(&thread, &QThread::finished, worker_, &QObject::deleteLater);
+		QObject::connect(&thread, &QThread::started, worker_,
+				 [this] { worker_->start(); });
+		QObject::connect(&thread, &QThread::finished, worker_,
+				 &QObject::deleteLater);
 		thread.start();
 	}
 	~implementation()
 	{
-		QMetaObject::invokeMethod(worker_, [this] { worker_->stop(); }, Qt::BlockingQueuedConnection);
+		QMetaObject::invokeMethod(
+			worker_, [this] { worker_->stop(); },
+			Qt::BlockingQueuedConnection);
 		thread.quit();
 		thread.wait();
 		worker_ = nullptr;
 	}
 };
 
-lol_dashboard_game_start_watcher::lol_dashboard_game_start_watcher() : implementation_(new implementation) {}
+lol_dashboard_game_start_watcher::lol_dashboard_game_start_watcher()
+	: implementation_(new implementation)
+{
+}
 lol_dashboard_game_start_watcher::~lol_dashboard_game_start_watcher() = default;
 
 bool lol_dashboard_game_start_watcher::consume_start(uint64_t &cursor) const

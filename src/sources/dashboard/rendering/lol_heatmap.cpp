@@ -5,8 +5,8 @@
 
 namespace sources {
 
-void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds, Qt::Alignment alignment,
-				      const QString &text)
+void lol_dashboard_draw_shadowed_text(QPainter &painter, const QRect &bounds,
+				      Qt::Alignment alignment, const QString &text)
 {
 	const QPen pen = painter.pen();
 	painter.setPen(Qt::black);
