@@ -31,7 +31,7 @@ struct playback_stream {
 	bool truncated{};
 	qint64 last_pointer_sample_ms{-100};
 	int pointer_sample_count{};
-	qint64 serialized_bytes{};
+	qint64 canonical_array_bytes{};
 };
 
 constexpr qint64 playback_max_game_time_ms = 60 * 60 * 1000;
@@ -42,6 +42,7 @@ constexpr qint64 playback_pointer_cadence_ms = 100;
 
 bool append_playback_record(playback_stream &stream, playback_record record);
 QJsonArray playback_json(const playback_stream &stream);
+qint64 playback_canonical_array_bytes(const playback_stream &stream);
 bool playback_from_json(const QJsonObject &value, playback_stream &stream);
 QString playback_kind_name(playback_kind kind);
 
